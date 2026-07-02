@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ABL Value Model — Knowledge Graph</title>
+<style>
+  :root { --bg:#0b0f14; --panel:#111826; --line:#1e2a3a; --teal:#2dd4bf; --amber:#f59e0b;
+          --grey:#94a3b8; --text:#e2e8f0; --muted:#7c8ba1; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  header { padding:18px 20px; border-bottom:1px solid var(--line); }
+  h1 { margin:0 0 4px; font-size:18px; letter-spacing:.3px; }
+  header p { margin:0; color:var(--muted); font-size:13px; }
+  .wrap { display:flex; flex-wrap:wrap; }
+  #canvas { flex:1 1 560px; min-width:300px; height:70vh; touch-action:none; display:block;
+            background:radial-gradient(circle at 50% 40%, #0f1622 0%, #0b0f14 80%); }
+  #side { flex:1 1 280px; min-width:260px; padding:16px 18px; border-left:1px solid var(--line); }
+  #side h2 { font-size:14px; margin:0 0 8px; color:var(--teal); }
+  #detail { font-size:13px; line-height:1.55; }
+  #detail .k { color:var(--muted); }
+  .rel { color:var(--grey); font-family:ui-monospace,Menlo,monospace; font-size:12px; }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; margin-top:10px; font-size:12px; color:var(--muted); }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+  @media (max-width:640px){ #canvas{ height:52vh; } #side{ border-left:none; border-top:1px solid var(--line);} }
+</style>
+</head>
+<body>
+<header>
+  <h1>ABL / Kore.ai Value Model — Knowledge Graph</h1>
+  <p>Drag nodes to explore. Tap a node to inspect its relationships. A proof-of-concept built from scratch.</p>
+  <div class="legend">
+    <span><span class="dot" style="background:var(--teal)"></span>ABL / deterministic</span>
+    <span><span class="dot" style="background:var(--amber)"></span>tiers &amp; assumptions</span>
+    <span><span class="dot" style="background:var(--grey)"></span>metrics / sources</span>
+  </div>
+</header>
+<div class="wrap">
+  <canvas id="canvas"></canvas>
+  <div id="side">
+    <h2>Inspector</h2>
+    <div id="detail">Tap any node to see its properties and relationships.</div>
+  </div>
+</div>
+<script>
+// Graph data is inlined so the file is fully self-contained (no fetch, no CDN).
+const G = {
+  "meta": {
+    "name": "ABL / Kore.ai Value Model Knowledge Graph",
+    "description": "A proof-of-concept knowledge graph of the concepts, benchmarks, and causal links behind the ABL contact-center value model. Built from scratch to demonstrate entity + relationship knowledge you can query and traverse.",
+    "version": "0.1.0",
+    "node_count": 24,
+    "edge_count": 30
+  },
+  "nodes": [
+    { "id": "abl", "type": "Product", "label": "ABL (Artemis-ABL)", "props": { "layer": "deterministic workflow platform", "vendor": "Kore.ai" } },
+    { "id": "koreai", "type": "Vendor", "label": "Kore.ai", "props": { "role": "default vendor" } },
+    { "id": "deterministic_workflow", "type": "Concept", "label": "Deterministic Scripted Workflow", "props": { "note": "resolves routine work WITHOUT an LLM call" } },
+    { "id": "pure_llm_rival", "type": "Competitor", "label": "Pure-LLM Rival", "props": { "cost_trend": "rising toward $3+/resolution by 2030" } },
+    { "id": "moat", "type": "Thesis", "label": "The Cost-Divergence Moat", "props": { "claim": "ABL cost stays near infra floor while pure-LLM rivals climb" } },
+    { "id": "seat_decay", "type": "Thesis", "label": "Seat-Decay Contradiction", "props": { "claim": "per-seat pricing loses revenue as automation succeeds" } },
+    { "id": "consumption_pricing", "type": "Concept", "label": "Consumption / Outcome Pricing", "props": { "note": "preserves customer savings; ABL aligns here" } },
+
+    { "id": "tier_low", "type": "ComplexityTier", "label": "Low Complexity Tier", "props": { "automation_rate": 0.90, "llm_calls": 0 } },
+    { "id": "tier_med", "type": "ComplexityTier", "label": "Medium Complexity Tier", "props": { "automation_rate": 0.60, "llm_calls": 1, "in_tokens": 2000, "out_tokens": 500 } },
+    { "id": "tier_high", "type": "ComplexityTier", "label": "High Complexity Tier", "props": { "automation_rate": 0.25, "llm_calls": 4, "in_tokens": 4000, "out_tokens": 1000 } },
+
+    { "id": "platform_cost", "type": "Assumption", "label": "Platform Cost / Interaction", "props": { "value": 0.20, "unit": "USD", "note": "all-in deterministic floor" } },
+    { "id": "token_price_in", "type": "Assumption", "label": "Input Token Price", "props": { "value": 3.00, "unit": "USD per 1M tokens" } },
+    { "id": "token_price_out", "type": "Assumption", "label": "Output Token Price", "props": { "value": 15.00, "unit": "USD per 1M tokens" } },
+    { "id": "human_cost", "type": "Assumption", "label": "Human Cost / Resolution", "props": { "value": 7.16, "unit": "USD", "source": "mckinsey" } },
+
+    { "id": "effective_deflection", "type": "Concept", "label": "Effective Deflection", "props": { "formula": "automation_rate x (1 - failed_containment) x (1 - repeat_drag)" } },
+    { "id": "failed_containment", "type": "Assumption", "label": "Failed Containment", "props": { "value": 0.12 } },
+    { "id": "repeat_drag", "type": "Assumption", "label": "Repeat Drag", "props": { "value": 0.06 } },
+    { "id": "tier_value", "type": "Metric", "label": "Tier Value", "props": { "formula": "automated_volume x (human_cost - abl_cost)" } },
+    { "id": "seats_released", "type": "Metric", "label": "Seats Released", "props": { "formula": "total_value / cost_per_agent" } },
+    { "id": "npv", "type": "Metric", "label": "3-Year NPV", "props": { "wacc": 0.12, "ramp": "Y1 40% / Y2 75% / Y3 100%" } },
+
+    { "id": "gartner", "type": "Source", "label": "Gartner", "props": {} },
+    { "id": "mckinsey", "type": "Source", "label": "McKinsey", "props": {} },
+    { "id": "forrester", "type": "Source", "label": "Forrester TEI", "props": { "roi": "208-391%", "payback_months": 5.4 } },
+    { "id": "reference_case", "type": "Scenario", "label": "Reference Case", "props": { "interactions": 100000000, "agents": 20000, "cost_per_agent": 45000 } }
+  ],
+  "edges": [
+    { "from": "abl", "rel": "BUILT_BY", "to": "koreai" },
+    { "from": "abl", "rel": "IMPLEMENTS", "to": "deterministic_workflow" },
+    { "from": "deterministic_workflow", "rel": "RESOLVES", "to": "tier_low" },
+    { "from": "abl", "rel": "COMPETES_WITH", "to": "pure_llm_rival" },
+    { "from": "deterministic_workflow", "rel": "CREATES", "to": "moat" },
+    { "from": "moat", "rel": "CONTRASTS", "to": "pure_llm_rival" },
+    { "from": "seat_decay", "rel": "RESOLVED_BY", "to": "consumption_pricing" },
+    { "from": "abl", "rel": "ALIGNS_WITH", "to": "consumption_pricing" },
+
+    { "from": "tier_low", "rel": "COSTS", "to": "platform_cost" },
+    { "from": "tier_med", "rel": "COSTS", "to": "platform_cost" },
+    { "from": "tier_high", "rel": "COSTS", "to": "platform_cost" },
+    { "from": "tier_med", "rel": "ADDS", "to": "token_price_in" },
+    { "from": "tier_med", "rel": "ADDS", "to": "token_price_out" },
+    { "from": "tier_high", "rel": "ADDS", "to": "token_price_in" },
+    { "from": "tier_high", "rel": "ADDS", "to": "token_price_out" },
+
+    { "from": "tier_low", "rel": "FEEDS", "to": "effective_deflection" },
+    { "from": "tier_med", "rel": "FEEDS", "to": "effective_deflection" },
+    { "from": "tier_high", "rel": "FEEDS", "to": "effective_deflection" },
+    { "from": "effective_deflection", "rel": "DISCOUNTED_BY", "to": "failed_containment" },
+    { "from": "effective_deflection", "rel": "DISCOUNTED_BY", "to": "repeat_drag" },
+    { "from": "effective_deflection", "rel": "DRIVES", "to": "tier_value" },
+    { "from": "human_cost", "rel": "INPUT_TO", "to": "tier_value" },
+    { "from": "platform_cost", "rel": "INPUT_TO", "to": "tier_value" },
+    { "from": "tier_value", "rel": "DRIVES", "to": "seats_released" },
+    { "from": "tier_value", "rel": "DRIVES", "to": "npv" },
+
+    { "from": "moat", "rel": "SUPPORTED_BY", "to": "gartner" },
+    { "from": "human_cost", "rel": "SOURCED_FROM", "to": "mckinsey" },
+    { "from": "effective_deflection", "rel": "SOURCED_FROM", "to": "gartner" },
+    { "from": "npv", "rel": "BENCHMARKED_BY", "to": "forrester" },
+    { "from": "reference_case", "rel": "PARAMETERIZES", "to": "abl" }
+  ]
+}
+;
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const detail = document.getElementById('detail');
+
+const byId = {}; G.nodes.forEach(n => byId[n.id] = n);
+function colorOf(n){
+  if (['Product','Vendor','Concept','Thesis'].includes(n.type)) return '#2dd4bf';
+  if (['ComplexityTier','Assumption','Scenario'].includes(n.type)) return '#f59e0b';
+  return '#94a3b8';
+}
+
+// simple force layout
+let W, H;
+const nodes = G.nodes.map((n,i) => ({...n, x:0, y:0, vx:0, vy:0, r:9}));
+const nById = {}; nodes.forEach(n => nById[n.id] = n);
+const edges = G.edges.map(e => ({...e, a:nById[e.from], b:nById[e.to]}));
+
+function resize(){
+  const rect = canvas.getBoundingClientRect();
+  W = canvas.width = rect.width * devicePixelRatio;
+  H = canvas.height = rect.height * devicePixelRatio;
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+}
+window.addEventListener('resize', resize); resize();
+
+// seed positions in a ring
+nodes.forEach((n,i) => {
+  const a = (i/nodes.length) * Math.PI*2;
+  n.x = (W/devicePixelRatio)/2 + Math.cos(a)* Math.min(W,H)/4/devicePixelRatio;
+  n.y = (H/devicePixelRatio)/2 + Math.sin(a)* Math.min(W,H)/4/devicePixelRatio;
+});
+
+function step(){
+  const cw = W/devicePixelRatio, ch = H/devicePixelRatio;
+  // repulsion
+  for (let i=0;i<nodes.length;i++){
+    for (let j=i+1;j<nodes.length;j++){
+      const a=nodes[i], b=nodes[j];
+      let dx=a.x-b.x, dy=a.y-b.y, d2=dx*dx+dy*dy+0.01;
+      const f = 1400/d2;
+      const d=Math.sqrt(d2);
+      a.vx += f*dx/d; a.vy += f*dy/d; b.vx -= f*dx/d; b.vy -= f*dy/d;
+    }
+  }
+  // springs
+  edges.forEach(e => {
+    let dx=e.b.x-e.a.x, dy=e.b.y-e.a.y, d=Math.sqrt(dx*dx+dy*dy)+0.01;
+    const f=(d-90)*0.01;
+    e.a.vx += f*dx/d; e.a.vy += f*dy/d; e.b.vx -= f*dx/d; e.b.vy -= f*dy/d;
+  });
+  nodes.forEach(n => {
+    if (n===dragging) return;
+    // gentle pull to center
+    n.vx += (cw/2 - n.x)*0.0008; n.vy += (ch/2 - n.y)*0.0008;
+    n.vx*=0.85; n.vy*=0.85;
+    n.x+=n.vx; n.y+=n.vy;
+    n.x=Math.max(20,Math.min(cw-20,n.x));
+    n.y=Math.max(20,Math.min(ch-20,n.y));
+  });
+}
+
+function draw(){
+  const cw=W/devicePixelRatio, ch=H/devicePixelRatio;
+  ctx.clearRect(0,0,cw,ch);
+  ctx.lineWidth=1;
+  edges.forEach(e => {
+    const hot = selected && (e.from===selected.id || e.to===selected.id);
+    ctx.strokeStyle = hot ? 'rgba(45,212,191,.55)' : 'rgba(120,139,161,.18)';
+    ctx.beginPath(); ctx.moveTo(e.a.x,e.a.y); ctx.lineTo(e.b.x,e.b.y); ctx.stroke();
+  });
+  nodes.forEach(n => {
+    const c = colorOf(n);
+    const on = selected===n;
+    ctx.beginPath(); ctx.arc(n.x,n.y,on?n.r+3:n.r,0,Math.PI*2);
+    ctx.fillStyle=c; ctx.globalAlpha = (!selected||on||isNeighbor(n))?1:0.35; ctx.fill();
+    ctx.globalAlpha=1;
+    if (!selected || on || isNeighbor(n)){
+      ctx.fillStyle='#cbd5e1'; ctx.font='11px -apple-system,sans-serif';
+      ctx.fillText(n.label, n.x+n.r+3, n.y+3);
+    }
+  });
+}
+
+function isNeighbor(n){
+  if(!selected) return false;
+  return edges.some(e => (e.from===selected.id&&e.to===n.id)||(e.to===selected.id&&e.from===n.id));
+}
+
+let selected=null, dragging=null;
+function pick(px,py){
+  let best=null,bd=400;
+  nodes.forEach(n=>{ const d=(n.x-px)**2+(n.y-py)**2; if(d<bd){bd=d;best=n;} });
+  return best;
+}
+function evPos(ev){
+  const r=canvas.getBoundingClientRect();
+  const t=ev.touches?ev.touches[0]:ev;
+  return {x:t.clientX-r.left, y:t.clientY-r.top};
+}
+function onDown(ev){
+  const p=evPos(ev); const n=pick(p.x,p.y);
+  if(n){ dragging=n; selected=n; showDetail(n); ev.preventDefault(); }
+  else { selected=null; detail.innerHTML='Tap any node to see its properties and relationships.'; }
+}
+function onMove(ev){ if(dragging){ const p=evPos(ev); dragging.x=p.x; dragging.y=p.y; dragging.vx=dragging.vy=0; ev.preventDefault(); } }
+function onUp(){ dragging=null; }
+canvas.addEventListener('mousedown',onDown); canvas.addEventListener('mousemove',onMove);
+window.addEventListener('mouseup',onUp);
+canvas.addEventListener('touchstart',onDown,{passive:false});
+canvas.addEventListener('touchmove',onMove,{passive:false});
+window.addEventListener('touchend',onUp);
+
+function showDetail(n){
+  let h = `<b style="color:${colorOf(n)}">${n.label}</b> <span class="k">[${n.type}]</span><br>`;
+  if(n.props && Object.keys(n.props).length){
+    for(const [k,v] of Object.entries(n.props)) h += `<span class="k">${k}:</span> ${v}<br>`;
+  }
+  h += '<br><b>Relationships</b><br>';
+  edges.forEach(e=>{
+    if(e.from===n.id) h += `<span class="rel">--${e.rel}--&gt;</span> ${byId[e.to].label}<br>`;
+    if(e.to===n.id) h += `<span class="rel">&lt;--${e.rel}--</span> ${byId[e.from].label}<br>`;
+  });
+  detail.innerHTML=h;
+}
+
+function loop(){ step(); draw(); requestAnimationFrame(loop); }
+loop();
+</script>
+</body>
+</html>
