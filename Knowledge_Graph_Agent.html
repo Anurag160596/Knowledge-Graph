@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Knowledge Graph Agent</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#111a2b; --panel2:#0e1626; --line:#1e2b40;
+    --ink:#e7edf6; --muted:#93a4bd; --faint:#5f7391;
+    --teal:#2dd4bf; --amber:#f59e0b; --blue:#60a5fa; --grey:#94a3b8; --violet:#c084fc; --green:#34d399;
+    --mono:'SFMono-Regular',ui-monospace,'Cascadia Code','Roboto Mono',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 700px at 70% -10%,#13203a 0%,var(--bg) 55%) fixed;
+    color:var(--ink);
+    font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; line-height:1.5;
+  }
+  header{padding:18px 22px 14px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(45,212,191,.06),transparent)}
+  .brand{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .dot{width:11px;height:11px;border-radius:50%;background:var(--teal);box-shadow:0 0 14px var(--teal)}
+  h1{font-size:18px;margin:0;letter-spacing:.2px;font-weight:650}
+  .tag{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 9px}
+  .thesis{color:var(--muted);font-size:13px;margin:8px 0 0;max-width:920px}
+  .thesis b{color:var(--teal);font-weight:600}
+
+  .wrap{display:grid;grid-template-columns:1fr 360px;gap:0;min-height:calc(100vh - 118px)}
+  .graphcol{position:relative;border-right:1px solid var(--line);min-width:0}
+  .side{background:var(--panel);display:flex;flex-direction:column;min-width:0}
+
+  .controls{position:absolute;top:12px;left:12px;z-index:5;display:flex;gap:6px;flex-wrap:wrap;max-width:calc(100% - 24px)}
+  .chip{font-size:11px;border:1px solid var(--line);background:rgba(17,26,43,.85);color:var(--muted);
+    padding:4px 9px;border-radius:999px;cursor:pointer;user-select:none;backdrop-filter:blur(6px);
+    display:inline-flex;align-items:center;gap:6px;transition:.15s}
+  .chip:hover{border-color:var(--faint);color:var(--ink)}
+  .chip.off{opacity:.4}
+  .chip .sw{width:8px;height:8px;border-radius:50%}
+  .hint{position:absolute;bottom:12px;left:12px;z-index:5;font-size:11px;color:var(--faint);
+    background:rgba(11,18,32,.7);padding:4px 8px;border-radius:8px;backdrop-filter:blur(4px)}
+  svg{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+  svg.grabbing{cursor:grabbing}
+  .edge{stroke:#2a3a55;stroke-width:1.2}
+  .edge.hot{stroke:var(--teal);stroke-width:2}
+  .edge.dim{stroke:#1a2637;opacity:.5}
+  .elabel{font-size:9px;fill:var(--faint);pointer-events:none}
+  .node circle{cursor:pointer;stroke:#0b1220;stroke-width:1.5;transition:filter .15s}
+  .node.sel circle{stroke:#fff;stroke-width:2.5}
+  .node.dim{opacity:.28}
+  .node text{font-size:10.5px;fill:var(--ink);pointer-events:none;paint-order:stroke;
+    stroke:#0b1220;stroke-width:3px;stroke-linejoin:round}
+  .node.prov circle{stroke:var(--amber);stroke-width:2.4;stroke-dasharray:4 2.5}
+  .node.prov text{fill:#fde3b0}
+  .clearbtn{position:absolute;top:12px;right:12px;z-index:5;font-size:11px;border:1px solid #f59e0b55;
+    background:rgba(17,26,43,.85);color:#f5c477;padding:4px 9px;border-radius:999px;cursor:pointer;backdrop-filter:blur(6px)}
+  .clearbtn:hover{color:#fde3b0;border-color:var(--amber)}
+  .clearbtn.hide{display:none}
+
+  .panelhead{padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+  .panelhead .k{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--faint)}
+  .detail{padding:14px 16px;overflow:auto;flex:0 0 auto;max-height:40vh}
+  .detail h3{margin:0 0 4px;font-size:15px}
+  .badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:999px;margin-bottom:8px;font-weight:600}
+  .detail p{font-size:13px;color:var(--muted);margin:8px 0}
+  .val{font-family:var(--mono);color:var(--teal);font-size:13px}
+  .rel{font-size:12px;color:var(--muted);margin:3px 0;padding-left:14px;position:relative}
+  .rel::before{content:'→';position:absolute;left:0;color:var(--faint)}
+  .rel b{color:var(--ink);font-weight:600;cursor:pointer;border-bottom:1px dotted var(--faint)}
+  .subh{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--faint);margin:12px 0 4px}
+
+  .agent{border-top:1px solid var(--line);display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+  .agent .ahead{padding:12px 16px 8px;display:flex;align-items:center;gap:8px}
+  .agent .ahead .k{font-size:11px;color:var(--muted);font-weight:600}
+  .answer{padding:0 16px 10px;overflow:auto;flex:1 1 auto;font-size:13px;min-height:60px}
+  .answer .a{background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--teal);
+    border-radius:10px;padding:11px 13px;margin:8px 0;color:var(--ink)}
+  .answer .a .src{color:var(--faint);font-size:11px;margin-top:6px;display:block}
+  .answer .q{color:var(--muted);font-size:12px;margin:10px 0 2px}
+  .answer b.link{color:var(--teal);cursor:pointer;font-weight:600}
+  /* pipeline steps */
+  .steps{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:8px 0}
+  .step{display:flex;gap:8px;margin:4px 0;font-size:11.5px;color:var(--muted);line-height:1.4}
+  .step .n{color:var(--teal);font-weight:700;font-variant-numeric:tabular-nums;flex:0 0 auto}
+  .step.web .n{color:var(--amber)}
+  .step b{color:var(--ink)}
+  .route{display:inline-block;font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;vertical-align:middle}
+  .route.db{background:#60a5fa22;color:#8fc0ff;border:1px solid #60a5fa55}
+  .route.web{background:#f59e0b22;color:#f5c477;border:1px solid #f59e0b55}
+  .prov-tag{display:inline-block;font-size:9.5px;color:#f5c477;border:1px solid #f59e0b55;border-radius:999px;padding:0 6px;margin-left:6px}
+  .out .lab{font-size:9.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--faint);margin:8px 0 2px}
+  /* explainability grid: what / where / when / why / how */
+  .qa{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:8px 0 4px}
+  .qa dt{color:var(--amber);font-weight:700;font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;padding-top:2px}
+  .qa dd{margin:0;font-size:12px;color:var(--ink);line-height:1.45}
+  .qa dd .m{color:var(--faint)}
+  .qa dd a{color:#8fc0ff;text-decoration:none;border-bottom:1px dotted #60a5fa66}
+  .path{font-size:11.5px;color:var(--muted)}
+  .path b{color:var(--ink)}
+  .sugg{display:flex;gap:6px;flex-wrap:wrap;padding:0 16px 8px}
+  .qform{display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--line);background:var(--panel2)}
+  .qform input{flex:1;background:#0a121f;border:1px solid var(--line);border-radius:9px;color:var(--ink);
+    padding:9px 11px;font-size:13px;outline:none;min-width:0}
+  .qform input:focus{border-color:var(--teal)}
+  .qform button{background:var(--teal);color:#062b26;border:0;border-radius:9px;padding:0 14px;font-weight:700;cursor:pointer;font-size:13px}
+  .qform button:hover{filter:brightness(1.08)}
+  /* data-source connector */
+  .srcchip{margin-left:auto;font-size:10.5px;border:1px solid var(--line);color:var(--muted);
+    padding:2px 9px;border-radius:999px;cursor:pointer;white-space:nowrap}
+  .srcchip:hover{border-color:var(--faint);color:var(--ink)}
+  .srcchip.live{color:#8fd0ff;border-color:#60a5fa66;background:#60a5fa14}
+  .route.neo4j{background:#60a5fa22;color:#8fd0ff;border:1px solid #60a5fa66}
+  .step.neo4j .n{color:#8fd0ff}
+  .node.ext circle{stroke:#8fd0ff;stroke-width:2.2;stroke-dasharray:2 2}
+  .node.ext text{fill:#cfe6ff}
+  .modal{position:fixed;inset:0;background:rgba(4,9,18,.66);backdrop-filter:blur(3px);z-index:50;
+    display:flex;align-items:center;justify-content:center;padding:16px}
+  .modal.hide{display:none}
+  .sheet{background:var(--panel);border:1px solid var(--line);border-radius:14px;width:min(560px,100%);
+    max-height:90vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  .sheeth{padding:14px 16px;border-bottom:1px solid var(--line);font-weight:650;font-size:14px;display:flex;align-items:center;gap:8px}
+  .sheeth .x{margin-left:auto;cursor:pointer;color:var(--faint);font-weight:400}
+  .sheeth .x:hover{color:var(--ink)}
+  .sheetb{padding:14px 16px}
+  .sheetb .note{font-size:12px;color:var(--muted);margin:0 0 12px}
+  .sheetb code{background:#0a121f;border:1px solid var(--line);border-radius:5px;padding:0 4px;font-size:11px;color:#8fd0ff}
+  .sheetb label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--faint);margin:8px 0;flex:1}
+  .sheetb .row{display:flex;gap:10px}
+  .sheetb input,.sheetb select{background:#0a121f;border:1px solid var(--line);border-radius:8px;color:var(--ink);
+    padding:8px 10px;font-size:13px;outline:none}
+  .sheetb input:focus,.sheetb select:focus{border-color:var(--teal)}
+  .acts{display:flex;gap:8px;margin-top:12px}
+  .acts button{background:var(--teal);color:#062b26;border:0;border-radius:9px;padding:9px 14px;font-weight:700;cursor:pointer;font-size:13px}
+  .acts button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .acts button:hover{filter:brightness(1.08)}
+  .status{margin-top:10px;font-size:12px;color:var(--muted);min-height:18px;line-height:1.45}
+  .status.ok{color:#7fd4c4}
+  .status.err{color:#f2a3a3}
+
+  footer{border-top:1px solid var(--line);padding:10px 22px;color:var(--faint);font-size:11px}
+  footer b{color:var(--muted);font-weight:600}
+
+  @media (max-width:860px){
+    .wrap{grid-template-columns:1fr}
+    .graphcol{border-right:0;border-bottom:1px solid var(--line);height:56vh}
+    .side{min-height:44vh}
+    .detail{max-height:none}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="dot"></span>
+    <h1>Knowledge Graph Agent</h1>
+    <span class="tag">route → extract → merge → answer</span>
+    <span class="tag">offline · self-contained</span>
+  </div>
+  <p class="thesis">Ask a question. The agent <b>routes</b> it — if the knowledge base already covers it,
+  it answers from the graph (<b>DATABASE</b>); if you ask for a live value it runs a <b>WEB SEARCH</b>,
+  extracts the facts, and <b>merges</b> them into the graph as provisional nodes before answering.
+  Every step is shown, so the routing decision is transparent.</p>
+</header>
+
+<div class="wrap">
+  <div class="graphcol">
+    <div class="controls" id="controls"></div>
+    <div class="clearbtn hide" id="clearprov" onclick="window.clearProvisional()">✕ clear web-added nodes</div>
+    <svg id="svg" viewBox="0 0 1000 720" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="hint">Drag nodes · click to inspect · scroll/pinch to zoom</div>
+  </div>
+
+  <aside class="side">
+    <div class="panelhead"><div class="k">Inspector</div></div>
+    <div class="detail" id="detail">
+      <p style="color:var(--faint)">Select a node — or ask the agent below — to explore the knowledge graph.</p>
+    </div>
+
+    <div class="agent">
+      <div class="ahead"><span class="dot" style="width:8px;height:8px"></span><span class="k">Agent</span>
+        <span id="srcchip" class="srcchip" onclick="window.kgbOpen()">◍ Demo (offline)</span></div>
+      <div class="answer" id="answer"></div>
+      <div class="sugg" id="sugg"></div>
+      <form class="qform" id="qform" onsubmit="return window.ask(event)">
+        <input id="q" autocomplete="off" placeholder="Ask: who works on Project Atlas? · latest Python release?"/>
+        <button type="submit">Ask</button>
+      </form>
+    </div>
+  </aside>
+</div>
+
+<div class="modal hide" id="kgbmodal">
+  <div class="sheet">
+    <div class="sheeth">Connect a data source — llm-graph-builder / Neo4j<span class="x" onclick="window.kgbClose()">✕</span></div>
+    <div class="sheetb">
+      <p class="note">Run the <b>llm-graph-builder</b> backend (FastAPI + Neo4j) locally and point the agent at it.
+      Questions then route to its GraphRAG <code>/chat_bot</code>; the graph loads from <code>/graph_query</code>.
+      If the backend is unreachable, the agent stays on the offline demo. (Open this file locally to reach a
+      <code>http://localhost</code> backend — a page served over https can't call http due to mixed-content rules.)</p>
+      <label>Backend URL<input id="k_base" value="http://localhost:8000" autocomplete="off"></label>
+      <div class="row">
+        <label>Neo4j URI<input id="k_uri" placeholder="neo4j+s://xxxx.databases.neo4j.io" autocomplete="off"></label>
+        <label style="max-width:150px">Database<input id="k_db" value="neo4j" autocomplete="off"></label>
+      </div>
+      <div class="row">
+        <label>User<input id="k_user" value="neo4j" autocomplete="off"></label>
+        <label>Password<input id="k_pass" type="password" autocomplete="off"></label>
+      </div>
+      <div class="row">
+        <label>Chat mode<select id="k_mode">
+          <option value="graph_vector">graph_vector</option>
+          <option value="vector">vector</option>
+          <option value="graph">graph</option>
+          <option value="fulltext">fulltext</option>
+          <option value="graph_vector_fulltext">graph_vector_fulltext</option>
+          <option value="entity_vector">entity_vector</option>
+          <option value="global_vector">global_vector</option>
+        </select></label>
+        <label>Model<input id="k_model" value="openai_gpt_4o" autocomplete="off"></label>
+      </div>
+      <div class="acts">
+        <button onclick="window.kgbConnect()">Connect &amp; load graph</button>
+        <button class="ghost" onclick="window.kgbUseDemo()">Use demo (offline)</button>
+      </div>
+      <div id="k_status" class="status">Not connected — using the offline demo knowledge base.</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <b>Provenance:</b> curated nodes come from the internal knowledge base; web-sourced nodes are added as
+  <b>provisional</b> (amber, dashed) with their source and a confidence flag — validate before relying on them.
+  Demo data is fictional and for illustration; the <code>webSearch()</code> adapter is a bundled snapshot you can
+  swap for a real search API.
+</footer>
+
+<script>
+/* ============================================================
+   Knowledge graph — neutral demo knowledge base
+   Types: person, team, project, tech, doc  (+ external = web-sourced)
+   ============================================================ */
+const TYPES = {
+  person:  {color:'#2dd4bf', label:'Person'},
+  team:    {color:'#c084fc', label:'Team'},
+  project: {color:'#60a5fa', label:'Project'},
+  tech:    {color:'#94a3b8', label:'Technology'},
+  doc:     {color:'#34d399', label:'Document'},
+  external:{color:'#f59e0b', label:'Web-sourced'}
+};
+
+const NODES = [
+  // people
+  {id:'p_ada',  t:'person', label:'Ada Lovelace',      d:'Engineer; <b>leads</b> the Platform team. Skilled in Python. Authored the Atlas spec.', kw:'ada lovelace person engineer platform lead python'},
+  {id:'p_grace',t:'person', label:'Grace Hopper',      d:'<b>Leads</b> the Data team. Skilled in Python and graph databases. Authored the Beacon spec.', kw:'grace hopper data lead python graph database'},
+  {id:'p_alan', t:'person', label:'Alan Turing',       d:'Engineer on the Platform team. Skilled in GraphQL.', kw:'alan turing platform engineer graphql'},
+  {id:'p_kath', t:'person', label:'Katherine Johnson', d:'<b>Leads</b> the Design team. Skilled in design systems.', kw:'katherine johnson design lead design systems'},
+  // teams
+  {id:'t_plat',  t:'team', label:'Platform team', d:'Owns <b>Project Atlas</b>. Members: Ada Lovelace (lead), Alan Turing.', kw:'platform team atlas'},
+  {id:'t_data',  t:'team', label:'Data team',     d:'Owns <b>Project Beacon</b>. Led by Grace Hopper.', kw:'data team beacon'},
+  {id:'t_design',t:'team', label:'Design team',   d:'Owns <b>Project Comet</b>. Led by Katherine Johnson.', kw:'design team comet'},
+  // projects
+  {id:'pr_atlas', t:'project', label:'Project Atlas',  d:'Platform initiative. Owned by the Platform team. Depends on Python and GraphQL.', kw:'project atlas platform python graphql'},
+  {id:'pr_beacon',t:'project', label:'Project Beacon', d:'Data initiative. Owned by the Data team. Depends on Python and a graph database.', kw:'project beacon data python graph database'},
+  {id:'pr_comet', t:'project', label:'Project Comet',  d:'Design initiative. Owned by the Design team. Depends on a design system.', kw:'project comet design system'},
+  // tech
+  {id:'sk_py', t:'tech', label:'Python',        d:'Programming language. Used by Atlas and Beacon; known by Ada and Grace.', kw:'python language programming'},
+  {id:'sk_gql',t:'tech', label:'GraphQL',       d:'API query language. Used by Atlas; known by Alan.', kw:'graphql api query language'},
+  {id:'sk_neo',t:'tech', label:'Graph database',d:'Graph data store. Used by Beacon; known by Grace.', kw:'graph database store neo4j'},
+  {id:'sk_ds', t:'tech', label:'Design system', d:'Shared UI component system. Used by Comet; known by Katherine.', kw:'design system ui components tokens'},
+  // documents
+  {id:'d_atlas', t:'doc', label:'Atlas spec',  d:'Specification for Project Atlas. Authored by Ada Lovelace.', kw:'atlas spec document specification'},
+  {id:'d_beacon',t:'doc', label:'Beacon spec', d:'Specification for Project Beacon. Authored by Grace Hopper.', kw:'beacon spec document specification'}
+];
+
+const EDGES = [
+  ['p_ada','t_plat','leads'], ['p_alan','t_plat','member of'],
+  ['p_grace','t_data','leads'], ['p_kath','t_design','leads'],
+  ['t_plat','pr_atlas','owns'], ['t_data','pr_beacon','owns'], ['t_design','pr_comet','owns'],
+  ['pr_atlas','sk_py','depends on'], ['pr_atlas','sk_gql','depends on'],
+  ['pr_beacon','sk_py','depends on'], ['pr_beacon','sk_neo','depends on'],
+  ['pr_comet','sk_ds','depends on'],
+  ['p_ada','sk_py','has skill'], ['p_grace','sk_py','has skill'], ['p_grace','sk_neo','has skill'],
+  ['p_alan','sk_gql','has skill'], ['p_kath','sk_ds','has skill'],
+  ['p_ada','d_atlas','authored'], ['d_atlas','pr_atlas','describes'],
+  ['p_grace','d_beacon','authored'], ['d_beacon','pr_beacon','describes']
+];
+
+/* ============================================================
+   Force-directed layout (self-contained, no libraries)
+   ============================================================ */
+const W=1000,H=720;
+const svg=document.getElementById('svg');
+const byId=Object.fromEntries(NODES.map(n=>[n.id,n]));
+const adj={}; NODES.forEach(n=>adj[n.id]=[]);
+EDGES.forEach(([a,b,r])=>{adj[a].push({o:b,r}); adj[b].push({o:a,r});});
+
+NODES.forEach((n,i)=>{
+  const a=(i/NODES.length)*Math.PI*2, rad=200+((i*53)%140);
+  n.x=W/2+Math.cos(a)*rad; n.y=H/2+Math.sin(a)*rad*0.72;
+  n.vx=0; n.vy=0;
+  n.r = n.t==='project'?14 : n.t==='team'?13 : n.t==='person'?12 : 10;
+});
+
+function tick(){
+  const k=0.9;
+  for(let i=0;i<NODES.length;i++){ const a=NODES[i];
+    for(let j=i+1;j<NODES.length;j++){ const b=NODES[j];
+      let dx=a.x-b.x, dy=a.y-b.y, d2=dx*dx+dy*dy||0.01, d=Math.sqrt(d2);
+      const rep=5200/d2, fx=dx/d*rep, fy=dy/d*rep;
+      a.vx+=fx; a.vy+=fy; b.vx-=fx; b.vy-=fy;
+    }
+  }
+  EDGES.forEach(([ia,ib])=>{ const a=byId[ia], b=byId[ib];
+    let dx=b.x-a.x, dy=b.y-a.y, d=Math.sqrt(dx*dx+dy*dy)||0.01;
+    const f=(d-118)*0.015, fx=dx/d*f, fy=dy/d*f;
+    a.vx+=fx; a.vy+=fy; b.vx-=fx; b.vy-=fy;
+  });
+  NODES.forEach(n=>{
+    n.vx+=(W/2-n.x)*0.0016; n.vy+=(H/2-n.y)*0.0016;
+    if(n===dragging) return;
+    n.vx*=k; n.vy*=k; n.x+=n.vx; n.y+=n.vy;
+    n.x=Math.max(40,Math.min(W-40,n.x)); n.y=Math.max(34,Math.min(H-34,n.y));
+  });
+}
+
+const SVGNS='http://www.w3.org/2000/svg';
+let gEdges, gELabels, gNodes, nodeEls={}, edgeEls=[];
+let selected=null, filterOff=new Set();
+function el(tag,attrs){const e=document.createElementNS(SVGNS,tag); if(attrs)for(const k in attrs)e.setAttribute(k,attrs[k]); return e;}
+
+function nodeColor(n){ return (TYPES[n.t]||{}).color || (n.prov==='neo4j'?'#8fd0ff':'#94a3b8'); }
+function initGroups(){ gEdges=el('g'); gELabels=el('g'); gNodes=el('g'); svg.append(gEdges,gELabels,gNodes); }
+function buildEls(){
+  gEdges.textContent=''; gELabels.textContent=''; gNodes.textContent='';
+  edgeEls.length=0; for(const k in nodeEls) delete nodeEls[k];
+  EDGES.forEach(e=>{ const ln=el('line',{class:'edge'}); gEdges.append(ln);
+    const tx=el('text',{class:'elabel'}); tx.textContent=e[2]; gELabels.append(tx);
+    edgeEls.push({ln,tx,e}); });
+  NODES.forEach(n=>{
+    const g=el('g',{class:'node'});
+    const c=el('circle',{r:n.r,fill:nodeColor(n)});
+    const t=el('text',{'text-anchor':'middle'}); t.textContent=n.label;
+    g.append(c,t);
+    g.addEventListener('pointerdown',ev=>startDrag(ev,n));
+    g.addEventListener('click',()=>{ if(!moved) selectNode(n.id); });
+    gNodes.append(g); nodeEls[n.id]={g,c,t};
+  });
+}
+/* replace the whole dataset (demo ↔ live Neo4j) and rebuild */
+function setGraph(nodes, edges){
+  NODES.length=0; EDGES.length=0;
+  for(const k in byId) delete byId[k];
+  for(const k in adj) delete adj[k];
+  provIds.clear();
+  nodes.forEach(n=>NODES.push(n)); edges.forEach(e=>EDGES.push(e));
+  NODES.forEach((n,i)=>{ byId[n.id]=n; adj[n.id]=[];
+    const a=(i/Math.max(1,NODES.length))*Math.PI*2, rad=200+((i*53)%140);
+    n.x=W/2+Math.cos(a)*rad; n.y=H/2+Math.sin(a)*rad*0.72; n.vx=0; n.vy=0;
+    n.r=n.r||(n.t==='project'?14:n.t==='team'?13:n.t==='person'?12:10); });
+  EDGES.forEach(([a,b,r])=>{ if(byId[a]&&byId[b]){ adj[a].push({o:b,r}); adj[b].push({o:a,r}); } });
+  buildEls();
+  const cp=document.getElementById('clearprov'); if(cp) cp.classList.add('hide');
+  energy=320; selected=NODES[0]?NODES[0].id:null;
+  if(selected) selectNode(selected); else paint();
+}
+
+function paint(){
+  const hot=new Set();
+  if(selected && byId[selected]){ hot.add(selected); (adj[selected]||[]).forEach(x=>hot.add(x.o)); }
+  edgeEls.forEach(o=>{
+    const [a,b]=o.e; const A=byId[a],B=byId[b];
+    if(!A||!B){ o.ln.style.display='none'; o.tx.style.display='none'; return; }
+    o.ln.setAttribute('x1',A.x); o.ln.setAttribute('y1',A.y);
+    o.ln.setAttribute('x2',B.x); o.ln.setAttribute('y2',B.y);
+    o.tx.setAttribute('x',(A.x+B.x)/2); o.tx.setAttribute('y',(A.y+B.y)/2-2);
+    const hidden=filterOff.has(A.t)||filterOff.has(B.t);
+    const isHot=selected && (a===selected||b===selected);
+    o.ln.setAttribute('class','edge'+(isHot?' hot':(selected?' dim':'')));
+    o.ln.style.display=hidden?'none':'';
+    o.tx.style.display=(hidden||!isHot)?'none':'';
+  });
+  NODES.forEach(n=>{
+    const o=nodeEls[n.id]; if(!o) return;
+    o.g.setAttribute('transform',`translate(${n.x},${n.y})`);
+    let cls='node';
+    if(n.prov==='web') cls+=' prov';
+    else if(n.prov==='neo4j') cls+=' ext';
+    if(n.id===selected) cls+=' sel';
+    else if(selected && !hot.has(n.id)) cls+=' dim';
+    o.g.setAttribute('class',cls);
+    o.g.style.display=filterOff.has(n.t)?'none':'';
+    o.t.setAttribute('y', n.r+12);
+  });
+}
+
+let raf, energy=260;
+function loop(){ if(energy>0){ tick(); energy-=1; } paint(); raf=requestAnimationFrame(loop); }
+
+/* ---- drag + pan + zoom ---- */
+let dragging=null, moved=false, dragOff={x:0,y:0};
+function clientToSvg(ev){ const r=svg.getBoundingClientRect(), vb=svg.viewBox.baseVal;
+  return {x:vb.x+(ev.clientX-r.left)/r.width*vb.width, y:vb.y+(ev.clientY-r.top)/r.height*vb.height}; }
+function startDrag(ev,n){ ev.stopPropagation(); moved=false; dragging=n;
+  const p=clientToSvg(ev); dragOff.x=n.x-p.x; dragOff.y=n.y-p.y; svg.classList.add('grabbing');
+  window.addEventListener('pointermove',onDrag); window.addEventListener('pointerup',endDrag); }
+function onDrag(ev){ if(!dragging) return; moved=true; energy=Math.max(energy,40);
+  const p=clientToSvg(ev); dragging.x=p.x+dragOff.x; dragging.y=p.y+dragOff.y; dragging.vx=0; dragging.vy=0; }
+function endDrag(){ dragging=null; svg.classList.remove('grabbing');
+  window.removeEventListener('pointermove',onDrag); window.removeEventListener('pointerup',endDrag);
+  setTimeout(()=>moved=false,0); }
+let panning=false, panStart={x:0,y:0}, vbStart={x:0,y:0};
+svg.addEventListener('pointerdown',ev=>{ if(ev.target!==svg) return; panning=true;
+  panStart={x:ev.clientX,y:ev.clientY}; vbStart={x:svg.viewBox.baseVal.x,y:svg.viewBox.baseVal.y}; svg.classList.add('grabbing'); });
+window.addEventListener('pointermove',ev=>{ if(!panning) return; const vb=svg.viewBox.baseVal, r=svg.getBoundingClientRect();
+  vb.x=vbStart.x-(ev.clientX-panStart.x)/r.width*vb.width; vb.y=vbStart.y-(ev.clientY-panStart.y)/r.height*vb.height; });
+window.addEventListener('pointerup',()=>{ if(panning){panning=false;svg.classList.remove('grabbing');} });
+svg.addEventListener('wheel',ev=>{ ev.preventDefault(); const vb=svg.viewBox.baseVal, r=svg.getBoundingClientRect();
+  const mx=vb.x+(ev.clientX-r.left)/r.width*vb.width, my=vb.y+(ev.clientY-r.top)/r.height*vb.height;
+  const f=ev.deltaY>0?1.1:0.9, nw=Math.max(300,Math.min(2200,vb.width*f)), nh=nw*(H/W);
+  vb.x=mx-(mx-vb.x)*(nw/vb.width); vb.y=my-(my-vb.y)*(nh/vb.height); vb.width=nw; vb.height=nh; },{passive:false});
+
+/* ---- selection + inspector ---- */
+function selectNode(id){
+  selected=id; energy=Math.max(energy,30);
+  const n=byId[id]; if(!n) return;
+  const ty=TYPES[n.t]||{color:nodeColor(n), label:(n.tlabel||(n.prov==='neo4j'?'Neo4j node':n.t))};
+  const rels=adj[id].map(x=>`<div class="rel"><span style="color:var(--faint)">${x.r}</span> <b onclick="window.select('${x.o}')">${byId[x.o].label}</b></div>`).join('');
+  document.getElementById('detail').innerHTML=
+    `<span class="badge" style="background:${ty.color}22;color:${ty.color};border:1px solid ${ty.color}55">${ty.label}</span>
+     <h3>${n.label}</h3><p>${n.d}</p>
+     <div class="subh">Connections</div>${rels||'<p style="color:var(--faint)">—</p>'}`;
+  paint();
+}
+window.select=selectNode;
+
+/* ---- type filters ---- */
+const controls=document.getElementById('controls');
+Object.entries(TYPES).forEach(([k,v])=>{
+  const c=document.createElement('div'); c.className='chip';
+  c.innerHTML=`<span class="sw" style="background:${v.color}"></span>${v.label}`;
+  c.onclick=()=>{ if(filterOff.has(k)){filterOff.delete(k);c.classList.remove('off');} else {filterOff.add(k);c.classList.add('off');} paint(); };
+  controls.append(c);
+});
+
+/* ============================================================
+   Agent — retrieval over the graph (DATABASE path)
+   ============================================================ */
+const STOP=new Set('the a an of to in on for is are and or how who what which does do can we with as at by me our tell show'.split(' '));
+const INTENTS=[
+  {re:/who.*(work|on|build|lead|is).*atlas|atlas.*(team|who|people|owns)/,
+   focus:'pr_atlas',
+   a:`<b class="link" onclick="window.select('pr_atlas')">Project Atlas</b> is owned by the <b class="link" onclick="window.select('t_plat')">Platform team</b> — <b class="link" onclick="window.select('p_ada')">Ada Lovelace</b> (lead) and <b class="link" onclick="window.select('p_alan')">Alan Turing</b>. It depends on <b class="link" onclick="window.select('sk_py')">Python</b> and <b class="link" onclick="window.select('sk_gql')">GraphQL</b>.`,
+   src:'Internal knowledge base.'},
+  {re:/(beacon).*(depend|use|need|tech|stack|on)|what.*beacon/,
+   focus:'pr_beacon',
+   a:`<b class="link" onclick="window.select('pr_beacon')">Project Beacon</b> depends on <b class="link" onclick="window.select('sk_py')">Python</b> and a <b class="link" onclick="window.select('sk_neo')">graph database</b>. It's owned by the <b class="link" onclick="window.select('t_data')">Data team</b> (lead: <b class="link" onclick="window.select('p_grace')">Grace Hopper</b>).`,
+   src:'Internal knowledge base.'},
+  {re:/who.*(know|skill|use|does).*python|python.*(who|know)/,
+   focus:'sk_py',
+   a:`<b class="link" onclick="window.select('sk_py')">Python</b> is known by <b class="link" onclick="window.select('p_ada')">Ada Lovelace</b> and <b class="link" onclick="window.select('p_grace')">Grace Hopper</b>, and used by projects <b class="link" onclick="window.select('pr_atlas')">Atlas</b> and <b class="link" onclick="window.select('pr_beacon')">Beacon</b>.`,
+   src:'Internal knowledge base.'}
+];
+
+function agentAnswer(q){
+  const ql=q.toLowerCase();
+  for(const it of INTENTS){ if(it.re.test(ql)) return {...it, score:3}; }
+  const toks=ql.replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(w=>w&&!STOP.has(w));
+  let best=null,bestScore=0;
+  NODES.forEach(n=>{
+    if(n.prov==='web') return; // web facts route through the web path, not DB retrieval
+    const hay=(n.label+' '+n.kw+' '+n.d).toLowerCase();
+    let s=0; toks.forEach(t=>{ if(hay.includes(t)) s+= n.label.toLowerCase().includes(t)?3:1; });
+    if(s>bestScore){bestScore=s;best=n;}
+  });
+  if(!best||bestScore<2) return null;
+  const rels=adj[best.id].slice(0,5).map(x=>`<b class="link" onclick="window.select('${x.o}')">${byId[x.o].label}</b> (${x.r})`).join(', ');
+  return {focus:best.id, score:bestScore,
+    a:`<b class="link" onclick="window.select('${best.id}')">${best.label}</b> — ${best.d}<br><span style="color:var(--faint);font-size:12px">Connections: ${rels||'—'}</span>`,
+    src:'Internal knowledge base.'};
+}
+
+/* ---------- Source adapters: DATABASE (the graph) + WEB SEARCH ----------
+   The pipeline is source-agnostic. webSearch() is an ADAPTER over a bundled
+   snapshot so the whole flow runs offline; swap its body for a real search API
+   (Brave / Serper / Bing). Each result carries an `extract` triple — in
+   production that triple is produced by an NER / LLM extractor. */
+const WEB_SNAPSHOT=[
+  {id:'ws_py', re:/python.*(version|latest|release|newest|current|3\.)|latest.*python/,
+   title:'Python — latest stable release', publisher:'python.org', url:'python.org/downloads', published:'2026-06-11',
+   text:'The current stable CPython release line as of mid-2026 (illustrative).',
+   extract:{id:'w_py', label:'Python: latest release', type:'external', value:'current stable line', to:'sk_py', rel:'live attribute', conf:'medium'}},
+  {id:'ws_gql', re:/graphql.*(version|latest|spec|edition|release|newest)|latest.*graphql/,
+   title:'GraphQL — latest specification edition', publisher:'spec.graphql.org', url:'spec.graphql.org', published:'2025-10-02',
+   text:'The most recent published edition of the GraphQL specification (illustrative).',
+   extract:{id:'w_gql', label:'GraphQL: latest spec', type:'external', value:'newest edition', to:'sk_gql', rel:'live attribute', conf:'medium'}},
+  {id:'ws_neo', re:/graph.?(db|database).*(version|latest|engine|vendor|release|option)|neo4j|latest.*graph database|which graph database/,
+   title:'Graph database engines — market options', publisher:'db-engines.com', url:'db-engines.com/en/ranking/graph+dbms', published:'2026-01-20',
+   text:'Several graph database engines are in common use; rankings shift year to year (illustrative).',
+   extract:{id:'w_neo', label:'Graph DB: market options', type:'external', value:'multiple vendors', to:'sk_neo', rel:'live attribute', conf:'low'}},
+  {id:'ws_ds', re:/design system.*(latest|trend|version|token|update|popular)|latest.*design system/,
+   title:'Design system tooling trend', publisher:'trends.example.com', url:'trends.example.com/design-systems', published:'2026-02-08',
+   text:'Design-token tooling and component libraries continue to evolve quickly (illustrative).',
+   extract:{id:'w_ds', label:'Design systems: 2026 trend', type:'external', value:'token-driven', to:'sk_ds', rel:'live attribute', conf:'low'}}
+];
+function webSearch(query){
+  const ql=query.toLowerCase();
+  return WEB_SNAPSHOT.filter(s=>s.re.test(ql));
+  // ↑ hosted build: return (await fetch(SEARCH_API+encodeURIComponent(query))).results
+}
+function extractTriples(hits){ return hits.map(h=>({...h.extract,
+  source:{title:h.title, publisher:h.publisher, url:h.url, published:h.published, text:h.text}})); }
+function fmtDate(iso){ const [y,m,d]=iso.split('-');
+  const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(+m)-1];
+  return `${mo} ${(+d)}, ${y}`; }
+
+/* ---- graph mutation: add provisional nodes/edges at runtime ---- */
+const provIds=new Set();
+function addNode(n, nearNode){
+  const seed=nearNode||{x:W/2,y:H/2};
+  n.x=seed.x+52; n.y=seed.y-46; n.vx=0; n.vy=0; n.r=10;
+  NODES.push(n); byId[n.id]=n; adj[n.id]=[];
+  const o={g:el('g',{class:'node prov'})};
+  o.c=el('circle',{r:n.r,fill:nodeColor(n)}); o.t=el('text',{'text-anchor':'middle'}); o.t.textContent=n.label;
+  o.g.append(o.c,o.t);
+  o.g.addEventListener('pointerdown',ev=>startDrag(ev,n));
+  o.g.addEventListener('click',()=>{ if(!moved) selectNode(n.id); });
+  gNodes.append(o.g); nodeEls[n.id]=o; energy=Math.max(energy,180);
+}
+function addEdge(a,b,r){
+  if(!byId[a]||!byId[b]) return;
+  EDGES.push([a,b,r]); adj[a].push({o:b,r}); adj[b].push({o:a,r});
+  const ln=el('line',{class:'edge'}); gEdges.append(ln);
+  const tx=el('text',{class:'elabel'}); tx.textContent=r; gELabels.append(tx);
+  edgeEls.push({ln,tx,e:[a,b,r]});
+}
+function mergeTriples(triples){
+  const added=[];
+  triples.forEach(tr=>{
+    if(byId[tr.id]){ added.push({tr,status:'exists'}); return; } // entity resolution: already present
+    addNode({id:tr.id, t:tr.type, label:tr.label, prov:'web', conf:tr.conf, source:tr.source,
+      d:`<b style="color:#f5c477">Web-sourced · provisional.</b> <span class="val">${tr.value}</span><br>`+
+        `<span style="color:var(--faint)">Where:</span> ${tr.source.title} — ${tr.source.publisher}<br>`+
+        `<span style="color:var(--faint)">Published:</span> ${fmtDate(tr.source.published)} · confidence ${tr.conf}<br>`+
+        `Grafts onto <b class="link" onclick="window.select('${tr.to}')">${byId[tr.to].label}</b> as its <i>${tr.rel}</i>. Validate before relying on it.`,
+      kw:tr.label.toLowerCase()}, byId[tr.to]);
+    addEdge(tr.id, tr.to, tr.rel); provIds.add(tr.id); added.push({tr,status:'added'});
+  });
+  document.getElementById('clearprov').classList.toggle('hide', provIds.size===0);
+  return added;
+}
+window.clearProvisional=function(){
+  if(!provIds.size) return;
+  for(let i=edgeEls.length-1;i>=0;i--){ const [a,b]=edgeEls[i].e;
+    if(provIds.has(a)||provIds.has(b)){ edgeEls[i].ln.remove(); edgeEls[i].tx.remove(); edgeEls.splice(i,1);} }
+  for(let i=EDGES.length-1;i>=0;i--){ if(provIds.has(EDGES[i][0])||provIds.has(EDGES[i][1])) EDGES.splice(i,1); }
+  provIds.forEach(id=>{ if(nodeEls[id]){ nodeEls[id].g.remove(); delete nodeEls[id]; }
+    delete byId[id]; delete adj[id];
+    const idx=NODES.findIndex(n=>n.id===id); if(idx>=0) NODES.splice(idx,1); });
+  Object.keys(adj).forEach(k=>{ adj[k]=adj[k].filter(x=>byId[x.o]); });
+  provIds.clear();
+  document.getElementById('clearprov').classList.add('hide');
+  if(selected && !byId[selected]) selectNode(NODES[0]?NODES[0].id:null);
+  energy=Math.max(energy,120); paint();
+};
+
+/* ============================================================
+   The pipeline: Route → Retrieve → (Search → Extract → Merge) → Synthesize
+   ============================================================ */
+const THETA=2;                 // graph-coverage threshold for the DB path
+const KB_UPDATED='2026-05-01';  // when the curated knowledge base was last updated
+function tokenize(q){ return q.toLowerCase().replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(w=>w&&!STOP.has(w)); }
+
+/* render the shared explainability card: what / where / when / why / how + final */
+function cardHtml(f, final){
+  return `<dl class="qa">`+
+    `<dt>What</dt><dd>${f.what}</dd>`+
+    `<dt>Where</dt><dd>${f.where}</dd>`+
+    `<dt>When</dt><dd>${f.when}</dd>`+
+    `<dt>Why</dt><dd>${f.why}</dd>`+
+    `<dt>How</dt><dd>${f.how}</dd>`+
+    `</dl><div class="out"><div class="lab">Final output</div>${final}</div>`;
+}
+
+/* DATABASE-path facets (mirrors the web card, sourced from the knowledge base) */
+function dbFacets(dbRes, dbSc, strong){
+  const F=byId[dbRes.focus], rels=adj[dbRes.focus]||[];
+  const relTypes=[...new Set(rels.map(x=>x.r))];
+  const short=(F.d||'').replace(/<[^>]+>/g,'').split(/\.\s/)[0];
+  return {
+    what:`<b class="link" onclick="window.select('${F.id}')">${F.label}</b> <span class="m">(${TYPES[F.t].label})</span> — ${short}.`,
+    where:`Internal knowledge base <span class="m">— curated · node <code>${F.id}</code> + ${rels.length} linked fact${rels.length!==1?'s':''}</span>`,
+    when:`Knowledge base as of <b>${fmtDate(KB_UPDATED)}</b> <span class="m">· curated, not a live lookup</span>`,
+    why: strong
+      ? `The router answered from the <b>knowledge base</b> because graph coverage was <b>${dbSc>=3?'high':'sufficient'}</b> (score ${dbSc}) ≥ θ=${THETA} and the query didn’t ask for a live value — so no web search was needed.`
+      : `No web source matched and graph coverage was <b>weak</b> (score ${dbSc}); answering with the closest match from the knowledge base — treat as low confidence.`,
+    how:`<span class="path">matched <b class="link" onclick="window.select('${F.id}')">${F.label}</b> → traversed ${rels.length} relation${rels.length!==1?'s':''}${relTypes.length?` (${relTypes.slice(0,4).join(', ')})`:''} → composed the answer from the connected nodes.</span>`
+  };
+}
+
+function runPipeline(query){
+  const ql=query.toLowerCase();
+  const steps=[]; const toks=tokenize(query);
+  steps.push({n:'1', t:'Route', d:`parsed query → key terms [${toks.slice(0,6).join(', ')||'—'}]`});
+
+  const dbRes=agentAnswer(query);
+  const dbSc=dbRes?dbRes.score:0;
+  const hits=webSearch(query);
+  const webSc=hits.length?3:0;
+  const forceWeb=/\b(search|look ?up|lookup|web|google|find out|online)\b/.test(ql);
+  const dataIntent=/\b(latest|current|version|release|newest|2026|news|market|update|price|trend|options?|vendors?)\b/.test(ql);
+  const preferWeb = webSc>0 && (forceWeb || dataIntent || dbSc<THETA);
+
+  if(!preferWeb && dbSc>=THETA){
+    steps.push({n:'2', t:'Retrieve', d:`graph coverage <b>${dbSc>=3?'high':'medium'}</b> (score ${dbSc}) ≥ θ=${THETA} — answer from the graph`, route:'db'});
+    selectNode(dbRes.focus);
+    const links=adj[dbRes.focus]?adj[dbRes.focus].length:0;
+    steps.push({n:'3', t:'Traverse', d:`walked subgraph around <b>${byId[dbRes.focus].label}</b> (${links} links)`});
+    steps.push({n:'4', t:'Synthesize', d:'composed answer from the graph ↓'});
+    return {steps, route:'db', facets:dbFacets(dbRes, dbSc, true), final:dbRes.a, src:dbRes.src};
+  }
+  if(webSc>0){
+    steps.push({n:'2', t:'Retrieve', d:`graph coverage <b>low</b> (score ${dbSc}) — ${dataIntent?'query asks for a live value':'below θ='+THETA} → escalate`, route:'web'});
+    steps.push({n:'3', t:'Web search', d:`${hits.length} result${hits.length>1?'s':''}: ${hits.map(h=>'“'+h.title.split('(')[0].trim()+'”').join(', ')}`, route:'web'});
+    const triples=extractTriples(hits);
+    steps.push({n:'4', t:'Extract', d:`${triples.length} triple${triples.length>1?'s':''} → ${triples.map(t=>`(<b>${t.label}</b> · ${t.rel} → ${byId[t.to]?byId[t.to].label:t.to})`).join('  ')}`});
+    const merged=mergeTriples(triples);
+    const addedN=merged.filter(m=>m.status==='added').length;
+    steps.push({n:'5', t:'Merge', d:`inserted <b>${addedN}</b> provisional node${addedN!==1?'s':''} (entity-resolved, provenance attached)`+(addedN<triples.length?`, ${triples.length-addedN} already present`:'')});
+    steps.push({n:'6', t:'Synthesize', d:'composed answer from the enriched graph ↓'});
+    if(byId[triples[0].id]) selectNode(triples[0].id);
+    const s=synthWeb(triples, dbRes, {dbSc, dataIntent, forceWeb});
+    return {steps, route:'web', facets:s.facets, final:s.final, src:s.src};
+  }
+  if(dbRes){ selectNode(dbRes.focus);
+    steps.push({n:'2', t:'Retrieve', d:`weak graph match (score ${dbSc}) — no web source available`, route:'db'});
+    steps.push({n:'3', t:'Synthesize', d:'composed closest answer from the knowledge base ↓'});
+    return {steps, route:'db', facets:dbFacets(dbRes, dbSc, false), final:dbRes.a, src:dbRes.src};
+  }
+  steps.push({n:'2', t:'Retrieve', d:'no graph match and no web result'});
+  return {steps, route:null, facets:null};
+}
+
+function synthWeb(triples, dbRes, ctx){
+  const anchor=byId[triples[0].to];
+  // WHAT — the extracted facts
+  const what=triples.map(t=>`<b class="link" onclick="window.select('${t.id}')">${t.label}</b> — “${t.value}” <span class="prov-tag">provisional · ${t.conf}</span>`).join('<br>');
+  // WHERE — the source(s)
+  const where=triples.map(t=>`${t.source.title} — <span class="m">${t.source.publisher}</span> · <a href="https://${t.source.url}" target="_blank" rel="noopener">${t.source.url}</a>`).join('<br>');
+  // WHEN — publish date(s)
+  const when=triples.map(t=>`Published <b>${fmtDate(t.source.published)}</b> <span class="m">· retrieved this session</span>`).join('<br>');
+  // WHY — the routing rationale
+  const reason = ctx.forceWeb ? 'the query explicitly asked to look it up online'
+              : ctx.dataIntent ? 'the query asked for a <b>live value</b> (a “latest / current” fact) that a static graph shouldn’t answer'
+              : `graph coverage was below the confidence threshold (score ${ctx.dbSc})`;
+  const why=`The router chose <b>web search</b> because ${reason}. The result was attached to <b class="link" onclick="window.select('${anchor.id}')">${anchor.label}</b> because the fact is a <i>${triples[0].rel}</i> of it (entity resolution matched an existing node rather than creating a duplicate).`;
+  // HOW — the derivation path through the graph
+  const how=`<span class="path">web result → <b>extract</b> triple <b>(${triples[0].label} · ${triples[0].rel} → ${anchor.label})</b> → <b>merge</b> as a provisional node → the answer reads the enriched subgraph around <b class="link" onclick="window.select('${anchor.id}')">${anchor.label}</b>.</span>`;
+  // FINAL
+  const final=`Grafted onto <b class="link" onclick="window.select('${anchor.id}')">${anchor.label}</b>: ${triples.map(t=>`<b class="link" onclick="window.select('${t.id}')">${t.label}</b> (“${t.value}”)`).join(', ')}. Flagged <b style="color:#f5c477">provisional</b> — validate before it’s trusted.`;
+
+  const src=triples.map(t=>`${t.source.title} (${t.source.publisher}, published ${fmtDate(t.source.published)})`).join('; ');
+  return {facets:{what,where,when,why,how}, final, src};
+}
+
+const answerEl=document.getElementById('answer');
+const routeLabel=x=> x==='web'?'WEB SEARCH' : x==='neo4j'?'NEO4J · GraphRAG' : 'DATABASE';
+const routeTag  =x=> x==='web'?'WEB' : x==='neo4j'?'KG' : 'DB';
+
+function renderResult(r, q){
+  const stepsHtml=`<div class="steps">${r.steps.map(s=>
+    `<div class="step ${s.route||''}"><span class="n">${s.n}</span><span><b>${s.t}.</b> ${s.d}${s.route?`<span class="route ${s.route}">${routeTag(s.route)}</span>`:''}</span></div>`).join('')}</div>`;
+  let outHtml;
+  if(r.facets){ const badge=`<span class="route ${r.route}">${routeLabel(r.route)}</span>`;
+    outHtml=`<div class="a">${badge}${cardHtml(r.facets, r.final)}<span class="src">Source${r.route==='db'?'':'s'}: ${r.src}</span></div>`;
+  } else { outHtml=`<div class="a">No route found — the graph has no match and the web search returned nothing. Try different phrasing or a suggested question.</div>`; }
+  answerEl.innerHTML=`<div class="q">${escapeHtml(q)}</div>${stepsHtml}${outHtml}`+answerEl.innerHTML;
+  answerEl.scrollTop=0;
+}
+window.ask=async function(ev){
+  if(ev&&ev.preventDefault) ev.preventDefault();
+  const inp=document.getElementById('q'); const q=inp.value.trim();
+  if(!q) return false;
+  inp.value='';
+  const r = KGB.connected ? await kgbAsk(q) : runPipeline(q);
+  renderResult(r, q);
+  return false;
+};
+function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+/* ============================================================
+   Connector: Neo4j Labs llm-graph-builder (FastAPI backend)
+   Wires /schema, /graph_query, /chat_bot to this agent, with offline fallback.
+   Endpoints & params follow the project's backend/score.py contract.
+   ============================================================ */
+const KGB={connected:false, base:'http://localhost:8000', uri:'', user:'neo4j', password:'',
+  database:'neo4j', email:'', model:'openai_gpt_4o', mode:'graph_vector', session:'kg-agent-session'};
+const gv=id=>(document.getElementById(id).value||'').trim();
+window.kgbOpen =()=>document.getElementById('kgbmodal').classList.remove('hide');
+window.kgbClose=()=>document.getElementById('kgbmodal').classList.add('hide');
+function kgbStatus(msg, ok){ const e=document.getElementById('k_status');
+  e.className='status'+(ok===true?' ok':ok===false?' err':''); e.innerHTML=msg; }
+function setSrcChip(live){ const c=document.getElementById('srcchip');
+  c.textContent=live?'◉ Live · Neo4j':'◍ Demo (offline)'; c.className='srcchip'+(live?' live':''); }
+function kgbForm(extra){ const f=new FormData();
+  f.append('uri',KGB.uri); f.append('userName',KGB.user); f.append('password',KGB.password);
+  f.append('database',KGB.database); f.append('email',KGB.email);
+  if(extra) for(const k in extra) f.append(k, extra[k]); return f; }
+async function kgbPost(path, extra){
+  const res=await fetch(KGB.base.replace(/\/+$/,'')+path, {method:'POST', body:kgbForm(extra)});
+  if(!res.ok) throw new Error('HTTP '+res.status+' from '+path);
+  return res.json();
+}
+function kgbRead(){ KGB.base=gv('k_base'); KGB.uri=gv('k_uri'); KGB.database=gv('k_db');
+  KGB.user=gv('k_user'); KGB.password=gv('k_pass'); KGB.mode=gv('k_mode'); KGB.model=gv('k_model'); }
+
+window.kgbConnect=async function(){
+  kgbRead();
+  kgbStatus(`Connecting… <code>POST ${KGB.base}/schema</code>`);
+  try{
+    const s=await kgbPost('/schema',{});
+    const d=s.data||s; const labels=d.labels||d.nodeLabels||[];
+    KGB.connected=true; setSrcChip(true);
+    kgbStatus(`Connected ✓ ${Array.isArray(labels)?labels.length+' node labels':'schema loaded'}. Loading graph…`, true);
+    try{ await window.kgbLoadGraph();
+      kgbStatus('Connected ✓ — graph loaded from Neo4j. Ask a question to query it via GraphRAG.', true);
+    }catch(e){ kgbStatus(`Connected ✓, but <code>/graph_query</code> returned nothing (${e.message}). Chat is still available.`, true); }
+    setTimeout(window.kgbClose, 1000);
+  }catch(e){
+    KGB.connected=false; setSrcChip(false);
+    kgbStatus(`Couldn’t reach the backend: ${e.message}.<br>Check the backend is running and reachable from this page (CORS; and http/https mixed-content — open this file locally to hit <code>http://localhost</code>). Staying on the offline demo.`, false);
+  }
+};
+window.kgbUseDemo=function(){ KGB.connected=false; setSrcChip(false);
+  setGraph(DEMO_NODES.map(n=>({...n})), DEMO_EDGES.map(e=>[...e]));
+  kgbStatus('Using the offline demo knowledge base.'); setTimeout(window.kgbClose, 500); };
+
+/* map a /graph_query response into our {nodes, edges} (defensive about field names) */
+function mapKgbGraph(j){
+  const d=j.data||j;
+  const rawN=d.nodes||[], rawR=d.relationships||d.relations||d.rels||d.edges||[];
+  const nodes=rawN.map(n=>{ const p=n.properties||n.props||{}; const lbl=(n.labels&&n.labels[0])||n.label||'Node';
+    const props=Object.keys(p).slice(0,6).map(k=>`${k}: ${p[k]}`).join(', ');
+    return {id:String(n.element_id||n.elementId||n.id), t:String(lbl).toLowerCase(), tlabel:lbl, prov:'neo4j',
+      label:String(p.id||p.name||p.title||lbl), kw:String(p.id||p.name||lbl).toLowerCase(),
+      d:`<b style="color:#8fd0ff">Neo4j node.</b> Label <b>${lbl}</b>.${props?' '+props:''}`}; });
+  const ids=new Set(nodes.map(n=>n.id));
+  const edges=rawR.map(r=>[String(r.start_node_element_id||r.startNodeElementId||r.start||r.source),
+                           String(r.end_node_element_id||r.endNodeElementId||r.end||r.target),
+                           String(r.type||r.rel||r.label||'REL')])
+                  .filter(e=>ids.has(e[0])&&ids.has(e[1]));
+  return {nodes, edges};
+}
+window.kgbLoadGraph=async function(){
+  const j=await kgbPost('/graph_query',{document_names:JSON.stringify([])});
+  const g=mapKgbGraph(j);
+  if(!g.nodes.length) throw new Error('no nodes');
+  setGraph(g.nodes, g.edges);
+};
+
+/* answer a question via GraphRAG /chat_bot → the same What/Where/When/Why/How card */
+async function kgbAsk(q){
+  const steps=[{n:'1', t:'Route', d:`live data source connected → query Neo4j via <b>llm-graph-builder</b> GraphRAG (mode <b>${KGB.mode}</b>)`, route:'neo4j'}];
+  let j;
+  try{
+    j=await kgbPost('/chat_bot',{model:KGB.model, question:q, document_names:JSON.stringify([]),
+      session_id:KGB.session, mode:KGB.mode, embedding_provider:'openai', embedding_model:'openai'});
+  }catch(e){
+    steps.push({n:'2', t:'Retrieve', d:`backend unreachable (${e.message}) → falling back to the offline demo`, route:'db'});
+    const r=runPipeline(q); r.steps=[...steps, ...r.steps.map(s=>({...s, n:String(+s.n+1)}))]; return r;
+  }
+  const d=j.data||j; const info=d.info||j.info||{};
+  const answer=d.message||d.response||j.message||'(no message field in the /chat_bot response)';
+  let sources=info.sources||info.source||d.sources||[];
+  if(!Array.isArray(sources)) sources=[sources];
+  const srcList=sources.map(s=>typeof s==='string'?s:(s.fileName||s.fileSource||s.name||s.source||JSON.stringify(s))).filter(Boolean);
+  const rt=info.response_time!=null?`${info.response_time}s`:'n/a';
+  steps.push({n:'2', t:'Retrieve', d:`GraphRAG <b>${KGB.mode}</b> retrieval over Neo4j`, route:'neo4j'});
+  steps.push({n:'3', t:'Synthesize', d:'LLM composed an answer with source attribution ↓', route:'neo4j'});
+  const facets={
+    what:`GraphRAG answer via <b>llm-graph-builder</b> <span class="m">(mode ${KGB.mode})</span>`,
+    where:`Neo4j <span class="m">— ${KGB.uri||'connected instance'} · ${KGB.base}</span>`+
+          (srcList.length?`<br>Cited: ${srcList.map(s=>`<span class="prov-tag" style="color:#8fd0ff;border-color:#60a5fa55">${escapeHtml(String(s))}</span>`).join(' ')}`:''),
+    when:`Retrieved this session <span class="m">· response time ${rt}</span>`,
+    why:`A live data source is connected, so the router answered from <b>Neo4j</b> via llm-graph-builder’s GraphRAG (<i>${KGB.mode}</i>) rather than the offline demo.`,
+    how:`<span class="path">question → <b>${KGB.mode}</b> retrieval over Neo4j (vector + graph + full-text, as configured) → LLM synthesis with source attribution.</span>`
+  };
+  const src=srcList.length?srcList.join('; '):('Neo4j · '+(KGB.uri||'llm-graph-builder'));
+  return {steps, route:'neo4j', facets, final:escapeHtml(answer).replace(/\n/g,'<br>'), src};
+}
+
+/* suggested questions (first three → DB, last three → web; ignored labels-wise in live mode) */
+const SUGG=['Who works on Project Atlas?','What does Beacon depend on?','Who knows Python?','Latest Python release?','GraphQL latest spec?','Graph database options?'];
+const suggEl=document.getElementById('sugg');
+SUGG.forEach(s=>{ const c=document.createElement('div'); c.className='chip'; c.textContent=s;
+  c.onclick=()=>{ document.getElementById('q').value=s; window.ask(); }; suggEl.append(c); });
+
+/* ---- boot ---- */
+const DEMO_NODES=NODES.map(n=>({...n})), DEMO_EDGES=EDGES.map(e=>[...e]);
+initGroups(); buildEls(); loop(); selectNode('pr_atlas');
+setTimeout(()=>{
+  answerEl.innerHTML=`<div class="a">Ask a question. I <b>route</b> it: covered by the graph → <span class="route db">DATABASE</span>; a live value → <span class="route web">WEB SEARCH</span> (extracted &amp; grafted in). Connect a real <b class="link" onclick="window.kgbOpen()">Neo4j / llm-graph-builder</b> backend to answer from it via <span class="route neo4j">GraphRAG</span> instead. Try <b class="link" onclick="document.getElementById('q').value='Latest Python release?';window.ask();">“latest Python release?”</b></div>`;
+},50);
+</script>
+</body>
+</html>
