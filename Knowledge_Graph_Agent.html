@@ -91,6 +91,14 @@
   .route.web{background:#f59e0b22;color:#f5c477;border:1px solid #f59e0b55}
   .prov-tag{display:inline-block;font-size:9.5px;color:#f5c477;border:1px solid #f59e0b55;border-radius:999px;padding:0 6px;margin-left:6px}
   .out .lab{font-size:9.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--faint);margin:8px 0 2px}
+  /* explainability grid: what / where / when / why / how */
+  .qa{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:8px 0 4px}
+  .qa dt{color:var(--amber);font-weight:700;font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;padding-top:2px}
+  .qa dd{margin:0;font-size:12px;color:var(--ink);line-height:1.45}
+  .qa dd .m{color:var(--faint)}
+  .qa dd a{color:#8fc0ff;text-decoration:none;border-bottom:1px dotted #60a5fa66}
+  .path{font-size:11.5px;color:var(--muted)}
+  .path b{color:var(--ink)}
   .sugg{display:flex;gap:6px;flex-wrap:wrap;padding:0 16px 8px}
   .qform{display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--line);background:var(--panel2)}
   .qform input{flex:1;background:#0a121f;border:1px solid var(--line);border-radius:9px;color:var(--ink);
@@ -388,20 +396,20 @@ function agentAnswer(q){
    production that triple is produced by an NER / LLM extractor. */
 const WEB_SNAPSHOT=[
   {id:'ws_py', re:/python.*(version|latest|release|newest|current|3\.)|latest.*python/,
-   title:'Python — latest stable release (illustrative)', url:'python.org/downloads', date:'2026',
-   text:'Illustrative: the current stable CPython release line as of 2026.',
+   title:'Python — latest stable release', publisher:'python.org', url:'python.org/downloads', published:'2026-06-11',
+   text:'The current stable CPython release line as of mid-2026 (illustrative).',
    extract:{id:'w_py', label:'Python: latest release', type:'external', value:'current stable line', to:'sk_py', rel:'live attribute', conf:'medium'}},
   {id:'ws_gql', re:/graphql.*(version|latest|spec|edition|release|newest)|latest.*graphql/,
-   title:'GraphQL — latest specification edition (illustrative)', url:'spec.graphql.org', date:'2026',
-   text:'Illustrative: the most recent published edition of the GraphQL specification.',
+   title:'GraphQL — latest specification edition', publisher:'spec.graphql.org', url:'spec.graphql.org', published:'2025-10-02',
+   text:'The most recent published edition of the GraphQL specification (illustrative).',
    extract:{id:'w_gql', label:'GraphQL: latest spec', type:'external', value:'newest edition', to:'sk_gql', rel:'live attribute', conf:'medium'}},
   {id:'ws_neo', re:/graph.?(db|database).*(version|latest|engine|vendor|release|option)|neo4j|latest.*graph database|which graph database/,
-   title:'Graph database engines — market options (illustrative)', url:'db-engines.example.com/graph', date:'2026',
-   text:'Illustrative: several graph database engines are in common use; rankings shift year to year.',
+   title:'Graph database engines — market options', publisher:'db-engines.com', url:'db-engines.com/en/ranking/graph+dbms', published:'2026-01-20',
+   text:'Several graph database engines are in common use; rankings shift year to year (illustrative).',
    extract:{id:'w_neo', label:'Graph DB: market options', type:'external', value:'multiple vendors', to:'sk_neo', rel:'live attribute', conf:'low'}},
   {id:'ws_ds', re:/design system.*(latest|trend|version|token|update|popular)|latest.*design system/,
-   title:'Design system tooling trend (illustrative)', url:'trends.example.com/design-systems', date:'2026',
-   text:'Illustrative: design-token tooling and component libraries continue to evolve quickly.',
+   title:'Design system tooling trend', publisher:'trends.example.com', url:'trends.example.com/design-systems', published:'2026-02-08',
+   text:'Design-token tooling and component libraries continue to evolve quickly (illustrative).',
    extract:{id:'w_ds', label:'Design systems: 2026 trend', type:'external', value:'token-driven', to:'sk_ds', rel:'live attribute', conf:'low'}}
 ];
 function webSearch(query){
@@ -409,7 +417,11 @@ function webSearch(query){
   return WEB_SNAPSHOT.filter(s=>s.re.test(ql));
   // ↑ hosted build: return (await fetch(SEARCH_API+encodeURIComponent(query))).results
 }
-function extractTriples(hits){ return hits.map(h=>({...h.extract, source:{title:h.title,url:h.url,date:h.date}})); }
+function extractTriples(hits){ return hits.map(h=>({...h.extract,
+  source:{title:h.title, publisher:h.publisher, url:h.url, published:h.published, text:h.text}})); }
+function fmtDate(iso){ const [y,m,d]=iso.split('-');
+  const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(+m)-1];
+  return `${mo} ${(+d)}, ${y}`; }
 
 /* ---- graph mutation: add provisional nodes/edges at runtime ---- */
 const provIds=new Set();
@@ -436,7 +448,10 @@ function mergeTriples(triples){
   triples.forEach(tr=>{
     if(byId[tr.id]){ added.push({tr,status:'exists'}); return; } // entity resolution: already present
     addNode({id:tr.id, t:tr.type, label:tr.label, prov:'web', conf:tr.conf, source:tr.source,
-      d:`<b style="color:#f5c477">Web-sourced · provisional.</b> ${tr.source.title} — <span class="val">${tr.value}</span>. Retrieved ${tr.source.date} · confidence ${tr.conf}. Validate before relying on it.`,
+      d:`<b style="color:#f5c477">Web-sourced · provisional.</b> <span class="val">${tr.value}</span><br>`+
+        `<span style="color:var(--faint)">Where:</span> ${tr.source.title} — ${tr.source.publisher}<br>`+
+        `<span style="color:var(--faint)">Published:</span> ${fmtDate(tr.source.published)} · confidence ${tr.conf}<br>`+
+        `Grafts onto <b class="link" onclick="window.select('${tr.to}')">${byId[tr.to].label}</b> as its <i>${tr.rel}</i>. Validate before relying on it.`,
       kw:tr.label.toLowerCase()}, byId[tr.to]);
     addEdge(tr.id, tr.to, tr.rel); provIds.add(tr.id); added.push({tr,status:'added'});
   });
@@ -495,7 +510,7 @@ function runPipeline(query){
     steps.push({n:'5', t:'Merge', d:`inserted <b>${addedN}</b> provisional node${addedN!==1?'s':''} (entity-resolved, provenance attached)`+(addedN<triples.length?`, ${triples.length-addedN} already present`:'')});
     steps.push({n:'6', t:'Synthesize', d:'composed answer from the enriched graph ↓'});
     if(byId[triples[0].id]) selectNode(triples[0].id);
-    const s=synthWeb(triples, dbRes);
+    const s=synthWeb(triples, dbRes, {dbSc, dataIntent, forceWeb});
     return {steps, route:'web', out:s.a, src:s.src};
   }
   if(dbRes){ selectNode(dbRes.focus);
@@ -506,12 +521,33 @@ function runPipeline(query){
   return {steps, route:null, out:null};
 }
 
-function synthWeb(triples, dbRes){
+function synthWeb(triples, dbRes, ctx){
   const anchor=byId[triples[0].to];
-  const items=triples.map(t=>`<b class="link" onclick="window.select('${t.id}')">${t.label}</b> <span style="color:var(--faint)">— ${t.source.title.split('(')[0].trim()}</span><span class="prov-tag">provisional · ${t.conf}</span>`).join('<br>');
-  const base = dbRes ? `It grafts onto <b class="link" onclick="window.select('${dbRes.focus}')">${byId[dbRes.focus].label}</b>. ` : '';
-  const a=`The graph didn't hold this, so I ran a web search and grafted the finding onto <b class="link" onclick="window.select('${anchor.id}')">${anchor.label}</b>:<br>${items}<br><span style="color:var(--faint);font-size:11.5px">${base}Flagged <b style="color:#f5c477">provisional</b> — validate before relying on it.</span>`;
-  const src=triples.map(t=>`${t.source.title.split('(')[0].trim()} (${t.source.url}, ${t.source.date})`).join('; ');
+  // WHAT — the extracted facts
+  const what=triples.map(t=>`<b class="link" onclick="window.select('${t.id}')">${t.label}</b> — “${t.value}” <span class="prov-tag">provisional · ${t.conf}</span>`).join('<br>');
+  // WHERE — the source(s)
+  const where=triples.map(t=>`${t.source.title} — <span class="m">${t.source.publisher}</span> · <a href="https://${t.source.url}" target="_blank" rel="noopener">${t.source.url}</a>`).join('<br>');
+  // WHEN — publish date(s)
+  const when=triples.map(t=>`Published <b>${fmtDate(t.source.published)}</b> <span class="m">· retrieved this session</span>`).join('<br>');
+  // WHY — the routing rationale
+  const reason = ctx.forceWeb ? 'the query explicitly asked to look it up online'
+              : ctx.dataIntent ? 'the query asked for a <b>live value</b> (a “latest / current” fact) that a static graph shouldn’t answer'
+              : `graph coverage was below the confidence threshold (score ${ctx.dbSc})`;
+  const why=`The router chose <b>web search</b> because ${reason}. The result was attached to <b class="link" onclick="window.select('${anchor.id}')">${anchor.label}</b> because the fact is a <i>${triples[0].rel}</i> of it (entity resolution matched an existing node rather than creating a duplicate).`;
+  // HOW — the derivation path through the graph
+  const how=`<span class="path">web result → <b>extract</b> triple <b>(${triples[0].label} · ${triples[0].rel} → ${anchor.label})</b> → <b>merge</b> as a provisional node → the answer reads the enriched subgraph around <b class="link" onclick="window.select('${anchor.id}')">${anchor.label}</b>.</span>`;
+  // FINAL
+  const final=`Grafted onto <b class="link" onclick="window.select('${anchor.id}')">${anchor.label}</b>: ${triples.map(t=>`<b class="link" onclick="window.select('${t.id}')">${t.label}</b> (“${t.value}”)`).join(', ')}. Flagged <b style="color:#f5c477">provisional</b> — validate before it’s trusted.`;
+
+  const a=`<dl class="qa">`+
+    `<dt>What</dt><dd>${what}</dd>`+
+    `<dt>Where</dt><dd>${where}</dd>`+
+    `<dt>When</dt><dd>${when}</dd>`+
+    `<dt>Why</dt><dd>${why}</dd>`+
+    `<dt>How</dt><dd>${how}</dd>`+
+    `</dl>`+
+    `<div class="out"><div class="lab">Final output</div>${final}</div>`;
+  const src=triples.map(t=>`${t.source.title} (${t.source.publisher}, published ${fmtDate(t.source.published)})`).join('; ');
   return {a,src};
 }
 
@@ -525,7 +561,9 @@ window.ask=function(ev){
     `<div class="step ${s.route==='web'?'web':''}"><span class="n">${s.n}</span><span><b>${s.t}.</b> ${s.d}${s.route?`<span class="route ${s.route}">${s.route==='web'?'WEB':'DB'}</span>`:''}</span></div>`).join('')}</div>`;
   let outHtml;
   if(r.out){ const badge=`<span class="route ${r.route}">${r.route==='web'?'WEB SEARCH':'DATABASE'}</span>`;
-    outHtml=`<div class="a">${badge}<div class="out"><div class="lab">Final output</div>${r.out}</div><span class="src">Source${r.route==='web'?'s':''}: ${r.src}</span></div>`;
+    const body = r.route==='web' ? r.out /* already structured: what/where/when/why/how + final */
+      : `<div class="out"><div class="lab">Final output</div>${r.out}</div>`;
+    outHtml=`<div class="a">${badge}${body}<span class="src">Source${r.route==='web'?'s':''}: ${r.src}</span></div>`;
   } else { outHtml=`<div class="a">No route found — the graph has no match and the web search returned nothing. Try different phrasing or a suggested question.</div>`; }
   answerEl.innerHTML=`<div class="q">${escapeHtml(q)}</div>${stepsHtml}${outHtml}`+answerEl.innerHTML;
   answerEl.scrollTop=0; inp.value=''; return false;
