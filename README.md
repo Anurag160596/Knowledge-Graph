@@ -95,6 +95,34 @@ nodes** control removes them.
 body for a real search API (Brave / Serper / Bing) in a hosted build; the `extract` step is where an
 NER / LLM extractor plugs in to produce the triples.
 
+## Connect a real backend — Neo4j Labs `llm-graph-builder`
+
+The agent can hydrate its graph and answer from a live [neo4j-labs/llm-graph-builder](https://github.com/neo4j-labs/llm-graph-builder)
+instance instead of the demo data. Click the **◍ Demo (offline)** chip in the Agent header to open the
+connection panel.
+
+**Prerequisites:** run the llm-graph-builder backend (FastAPI + Neo4j 5.23+ with APOC + an LLM API key)
+— typically via its Docker Compose. Because a page served over `https` can't call a `http://localhost`
+backend (mixed-content), **open this HTML file locally** (or from the same origin as the backend) when
+connecting, and make sure the backend allows CORS from that origin.
+
+**What it wires** (endpoints from the project's `backend/score.py`):
+
+| Step | Endpoint | Use |
+|---|---|---|
+| Connect | `POST /schema` | validate the Neo4j connection, read node labels |
+| Load graph | `POST /graph_query` | pull nodes + relationships → rendered on the canvas as **Neo4j** nodes (blue, dashed) |
+| Ask | `POST /chat_bot` | GraphRAG answer in the selected mode (`vector`, `graph`, `graph_vector`, `fulltext`, …) |
+
+Neo4j credentials (`uri`, `userName`, `password`, `database`) and the model / chat mode are entered in
+the panel and sent as form fields, exactly as the backend expects.
+
+When connected, a question routes to `/chat_bot` and the answer is shown in the same
+**What / Where / When / Why / How** card — badged **NEO4J · GraphRAG** — with the backend's **source
+attribution** (cited documents), the response time, and the retrieval mode. If the backend is
+unreachable, the agent reports it and falls back to the offline demo; **Use demo (offline)** restores the
+demo graph at any time. The connector is a thin client — no keys or data are stored in the file.
+
 ## Use it
 
 - **Open / share:** download `Knowledge_Graph_Agent.html` and open in any browser, or host via GitHub Pages.

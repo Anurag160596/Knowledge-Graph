@@ -106,6 +106,38 @@
   .qform input:focus{border-color:var(--teal)}
   .qform button{background:var(--teal);color:#062b26;border:0;border-radius:9px;padding:0 14px;font-weight:700;cursor:pointer;font-size:13px}
   .qform button:hover{filter:brightness(1.08)}
+  /* data-source connector */
+  .srcchip{margin-left:auto;font-size:10.5px;border:1px solid var(--line);color:var(--muted);
+    padding:2px 9px;border-radius:999px;cursor:pointer;white-space:nowrap}
+  .srcchip:hover{border-color:var(--faint);color:var(--ink)}
+  .srcchip.live{color:#8fd0ff;border-color:#60a5fa66;background:#60a5fa14}
+  .route.neo4j{background:#60a5fa22;color:#8fd0ff;border:1px solid #60a5fa66}
+  .step.neo4j .n{color:#8fd0ff}
+  .node.ext circle{stroke:#8fd0ff;stroke-width:2.2;stroke-dasharray:2 2}
+  .node.ext text{fill:#cfe6ff}
+  .modal{position:fixed;inset:0;background:rgba(4,9,18,.66);backdrop-filter:blur(3px);z-index:50;
+    display:flex;align-items:center;justify-content:center;padding:16px}
+  .modal.hide{display:none}
+  .sheet{background:var(--panel);border:1px solid var(--line);border-radius:14px;width:min(560px,100%);
+    max-height:90vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  .sheeth{padding:14px 16px;border-bottom:1px solid var(--line);font-weight:650;font-size:14px;display:flex;align-items:center;gap:8px}
+  .sheeth .x{margin-left:auto;cursor:pointer;color:var(--faint);font-weight:400}
+  .sheeth .x:hover{color:var(--ink)}
+  .sheetb{padding:14px 16px}
+  .sheetb .note{font-size:12px;color:var(--muted);margin:0 0 12px}
+  .sheetb code{background:#0a121f;border:1px solid var(--line);border-radius:5px;padding:0 4px;font-size:11px;color:#8fd0ff}
+  .sheetb label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--faint);margin:8px 0;flex:1}
+  .sheetb .row{display:flex;gap:10px}
+  .sheetb input,.sheetb select{background:#0a121f;border:1px solid var(--line);border-radius:8px;color:var(--ink);
+    padding:8px 10px;font-size:13px;outline:none}
+  .sheetb input:focus,.sheetb select:focus{border-color:var(--teal)}
+  .acts{display:flex;gap:8px;margin-top:12px}
+  .acts button{background:var(--teal);color:#062b26;border:0;border-radius:9px;padding:9px 14px;font-weight:700;cursor:pointer;font-size:13px}
+  .acts button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .acts button:hover{filter:brightness(1.08)}
+  .status{margin-top:10px;font-size:12px;color:var(--muted);min-height:18px;line-height:1.45}
+  .status.ok{color:#7fd4c4}
+  .status.err{color:#f2a3a3}
 
   footer{border-top:1px solid var(--line);padding:10px 22px;color:var(--faint);font-size:11px}
   footer b{color:var(--muted);font-weight:600}
@@ -147,7 +179,8 @@
     </div>
 
     <div class="agent">
-      <div class="ahead"><span class="dot" style="width:8px;height:8px"></span><span class="k">Agent</span></div>
+      <div class="ahead"><span class="dot" style="width:8px;height:8px"></span><span class="k">Agent</span>
+        <span id="srcchip" class="srcchip" onclick="window.kgbOpen()">◍ Demo (offline)</span></div>
       <div class="answer" id="answer"></div>
       <div class="sugg" id="sugg"></div>
       <form class="qform" id="qform" onsubmit="return window.ask(event)">
@@ -156,6 +189,44 @@
       </form>
     </div>
   </aside>
+</div>
+
+<div class="modal hide" id="kgbmodal">
+  <div class="sheet">
+    <div class="sheeth">Connect a data source — llm-graph-builder / Neo4j<span class="x" onclick="window.kgbClose()">✕</span></div>
+    <div class="sheetb">
+      <p class="note">Run the <b>llm-graph-builder</b> backend (FastAPI + Neo4j) locally and point the agent at it.
+      Questions then route to its GraphRAG <code>/chat_bot</code>; the graph loads from <code>/graph_query</code>.
+      If the backend is unreachable, the agent stays on the offline demo. (Open this file locally to reach a
+      <code>http://localhost</code> backend — a page served over https can't call http due to mixed-content rules.)</p>
+      <label>Backend URL<input id="k_base" value="http://localhost:8000" autocomplete="off"></label>
+      <div class="row">
+        <label>Neo4j URI<input id="k_uri" placeholder="neo4j+s://xxxx.databases.neo4j.io" autocomplete="off"></label>
+        <label style="max-width:150px">Database<input id="k_db" value="neo4j" autocomplete="off"></label>
+      </div>
+      <div class="row">
+        <label>User<input id="k_user" value="neo4j" autocomplete="off"></label>
+        <label>Password<input id="k_pass" type="password" autocomplete="off"></label>
+      </div>
+      <div class="row">
+        <label>Chat mode<select id="k_mode">
+          <option value="graph_vector">graph_vector</option>
+          <option value="vector">vector</option>
+          <option value="graph">graph</option>
+          <option value="fulltext">fulltext</option>
+          <option value="graph_vector_fulltext">graph_vector_fulltext</option>
+          <option value="entity_vector">entity_vector</option>
+          <option value="global_vector">global_vector</option>
+        </select></label>
+        <label>Model<input id="k_model" value="openai_gpt_4o" autocomplete="off"></label>
+      </div>
+      <div class="acts">
+        <button onclick="window.kgbConnect()">Connect &amp; load graph</button>
+        <button class="ghost" onclick="window.kgbUseDemo()">Use demo (offline)</button>
+      </div>
+      <div id="k_status" class="status">Not connected — using the offline demo knowledge base.</div>
+    </div>
+  </div>
 </div>
 
 <footer>
@@ -259,21 +330,40 @@ let gEdges, gELabels, gNodes, nodeEls={}, edgeEls=[];
 let selected=null, filterOff=new Set();
 function el(tag,attrs){const e=document.createElementNS(SVGNS,tag); if(attrs)for(const k in attrs)e.setAttribute(k,attrs[k]); return e;}
 
-function build(){
-  gEdges=el('g'); gELabels=el('g'); gNodes=el('g');
-  svg.append(gEdges,gELabels,gNodes);
+function nodeColor(n){ return (TYPES[n.t]||{}).color || (n.prov==='neo4j'?'#8fd0ff':'#94a3b8'); }
+function initGroups(){ gEdges=el('g'); gELabels=el('g'); gNodes=el('g'); svg.append(gEdges,gELabels,gNodes); }
+function buildEls(){
+  gEdges.textContent=''; gELabels.textContent=''; gNodes.textContent='';
+  edgeEls.length=0; for(const k in nodeEls) delete nodeEls[k];
   EDGES.forEach(e=>{ const ln=el('line',{class:'edge'}); gEdges.append(ln);
     const tx=el('text',{class:'elabel'}); tx.textContent=e[2]; gELabels.append(tx);
     edgeEls.push({ln,tx,e}); });
   NODES.forEach(n=>{
     const g=el('g',{class:'node'});
-    const c=el('circle',{r:n.r,fill:TYPES[n.t].color});
+    const c=el('circle',{r:n.r,fill:nodeColor(n)});
     const t=el('text',{'text-anchor':'middle'}); t.textContent=n.label;
     g.append(c,t);
     g.addEventListener('pointerdown',ev=>startDrag(ev,n));
     g.addEventListener('click',()=>{ if(!moved) selectNode(n.id); });
     gNodes.append(g); nodeEls[n.id]={g,c,t};
   });
+}
+/* replace the whole dataset (demo ↔ live Neo4j) and rebuild */
+function setGraph(nodes, edges){
+  NODES.length=0; EDGES.length=0;
+  for(const k in byId) delete byId[k];
+  for(const k in adj) delete adj[k];
+  provIds.clear();
+  nodes.forEach(n=>NODES.push(n)); edges.forEach(e=>EDGES.push(e));
+  NODES.forEach((n,i)=>{ byId[n.id]=n; adj[n.id]=[];
+    const a=(i/Math.max(1,NODES.length))*Math.PI*2, rad=200+((i*53)%140);
+    n.x=W/2+Math.cos(a)*rad; n.y=H/2+Math.sin(a)*rad*0.72; n.vx=0; n.vy=0;
+    n.r=n.r||(n.t==='project'?14:n.t==='team'?13:n.t==='person'?12:10); });
+  EDGES.forEach(([a,b,r])=>{ if(byId[a]&&byId[b]){ adj[a].push({o:b,r}); adj[b].push({o:a,r}); } });
+  buildEls();
+  const cp=document.getElementById('clearprov'); if(cp) cp.classList.add('hide');
+  energy=320; selected=NODES[0]?NODES[0].id:null;
+  if(selected) selectNode(selected); else paint();
 }
 
 function paint(){
@@ -296,6 +386,7 @@ function paint(){
     o.g.setAttribute('transform',`translate(${n.x},${n.y})`);
     let cls='node';
     if(n.prov==='web') cls+=' prov';
+    else if(n.prov==='neo4j') cls+=' ext';
     if(n.id===selected) cls+=' sel';
     else if(selected && !hot.has(n.id)) cls+=' dim';
     o.g.setAttribute('class',cls);
@@ -334,9 +425,10 @@ svg.addEventListener('wheel',ev=>{ ev.preventDefault(); const vb=svg.viewBox.bas
 function selectNode(id){
   selected=id; energy=Math.max(energy,30);
   const n=byId[id]; if(!n) return;
+  const ty=TYPES[n.t]||{color:nodeColor(n), label:(n.tlabel||(n.prov==='neo4j'?'Neo4j node':n.t))};
   const rels=adj[id].map(x=>`<div class="rel"><span style="color:var(--faint)">${x.r}</span> <b onclick="window.select('${x.o}')">${byId[x.o].label}</b></div>`).join('');
   document.getElementById('detail').innerHTML=
-    `<span class="badge" style="background:${TYPES[n.t].color}22;color:${TYPES[n.t].color};border:1px solid ${TYPES[n.t].color}55">${TYPES[n.t].label}</span>
+    `<span class="badge" style="background:${ty.color}22;color:${ty.color};border:1px solid ${ty.color}55">${ty.label}</span>
      <h3>${n.label}</h3><p>${n.d}</p>
      <div class="subh">Connections</div>${rels||'<p style="color:var(--faint)">—</p>'}`;
   paint();
@@ -430,7 +522,7 @@ function addNode(n, nearNode){
   n.x=seed.x+52; n.y=seed.y-46; n.vx=0; n.vy=0; n.r=10;
   NODES.push(n); byId[n.id]=n; adj[n.id]=[];
   const o={g:el('g',{class:'node prov'})};
-  o.c=el('circle',{r:n.r,fill:TYPES[n.t].color}); o.t=el('text',{'text-anchor':'middle'}); o.t.textContent=n.label;
+  o.c=el('circle',{r:n.r,fill:nodeColor(n)}); o.t=el('text',{'text-anchor':'middle'}); o.t.textContent=n.label;
   o.g.append(o.c,o.t);
   o.g.addEventListener('pointerdown',ev=>startDrag(ev,n));
   o.g.addEventListener('click',()=>{ if(!moved) selectNode(n.id); });
@@ -469,7 +561,7 @@ window.clearProvisional=function(){
   Object.keys(adj).forEach(k=>{ adj[k]=adj[k].filter(x=>byId[x.o]); });
   provIds.clear();
   document.getElementById('clearprov').classList.add('hide');
-  if(selected && !byId[selected]) selectNode('pr_atlas');
+  if(selected && !byId[selected]) selectNode(NODES[0]?NODES[0].id:null);
   energy=Math.max(energy,120); paint();
 };
 
@@ -573,32 +665,142 @@ function synthWeb(triples, dbRes, ctx){
 }
 
 const answerEl=document.getElementById('answer');
-window.ask=function(ev){
+const routeLabel=x=> x==='web'?'WEB SEARCH' : x==='neo4j'?'NEO4J · GraphRAG' : 'DATABASE';
+const routeTag  =x=> x==='web'?'WEB' : x==='neo4j'?'KG' : 'DB';
+
+function renderResult(r, q){
+  const stepsHtml=`<div class="steps">${r.steps.map(s=>
+    `<div class="step ${s.route||''}"><span class="n">${s.n}</span><span><b>${s.t}.</b> ${s.d}${s.route?`<span class="route ${s.route}">${routeTag(s.route)}</span>`:''}</span></div>`).join('')}</div>`;
+  let outHtml;
+  if(r.facets){ const badge=`<span class="route ${r.route}">${routeLabel(r.route)}</span>`;
+    outHtml=`<div class="a">${badge}${cardHtml(r.facets, r.final)}<span class="src">Source${r.route==='db'?'':'s'}: ${r.src}</span></div>`;
+  } else { outHtml=`<div class="a">No route found — the graph has no match and the web search returned nothing. Try different phrasing or a suggested question.</div>`; }
+  answerEl.innerHTML=`<div class="q">${escapeHtml(q)}</div>${stepsHtml}${outHtml}`+answerEl.innerHTML;
+  answerEl.scrollTop=0;
+}
+window.ask=async function(ev){
   if(ev&&ev.preventDefault) ev.preventDefault();
   const inp=document.getElementById('q'); const q=inp.value.trim();
   if(!q) return false;
-  const r=runPipeline(q);
-  const stepsHtml=`<div class="steps">${r.steps.map(s=>
-    `<div class="step ${s.route==='web'?'web':''}"><span class="n">${s.n}</span><span><b>${s.t}.</b> ${s.d}${s.route?`<span class="route ${s.route}">${s.route==='web'?'WEB':'DB'}</span>`:''}</span></div>`).join('')}</div>`;
-  let outHtml;
-  if(r.facets){ const badge=`<span class="route ${r.route}">${r.route==='web'?'WEB SEARCH':'DATABASE'}</span>`;
-    outHtml=`<div class="a">${badge}${cardHtml(r.facets, r.final)}<span class="src">Source${r.route==='web'?'s':''}: ${r.src}</span></div>`;
-  } else { outHtml=`<div class="a">No route found — the graph has no match and the web search returned nothing. Try different phrasing or a suggested question.</div>`; }
-  answerEl.innerHTML=`<div class="q">${escapeHtml(q)}</div>${stepsHtml}${outHtml}`+answerEl.innerHTML;
-  answerEl.scrollTop=0; inp.value=''; return false;
+  inp.value='';
+  const r = KGB.connected ? await kgbAsk(q) : runPipeline(q);
+  renderResult(r, q);
+  return false;
 };
 function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
-/* suggested questions (first three → DB, last three → web) */
+/* ============================================================
+   Connector: Neo4j Labs llm-graph-builder (FastAPI backend)
+   Wires /schema, /graph_query, /chat_bot to this agent, with offline fallback.
+   Endpoints & params follow the project's backend/score.py contract.
+   ============================================================ */
+const KGB={connected:false, base:'http://localhost:8000', uri:'', user:'neo4j', password:'',
+  database:'neo4j', email:'', model:'openai_gpt_4o', mode:'graph_vector', session:'kg-agent-session'};
+const gv=id=>(document.getElementById(id).value||'').trim();
+window.kgbOpen =()=>document.getElementById('kgbmodal').classList.remove('hide');
+window.kgbClose=()=>document.getElementById('kgbmodal').classList.add('hide');
+function kgbStatus(msg, ok){ const e=document.getElementById('k_status');
+  e.className='status'+(ok===true?' ok':ok===false?' err':''); e.innerHTML=msg; }
+function setSrcChip(live){ const c=document.getElementById('srcchip');
+  c.textContent=live?'◉ Live · Neo4j':'◍ Demo (offline)'; c.className='srcchip'+(live?' live':''); }
+function kgbForm(extra){ const f=new FormData();
+  f.append('uri',KGB.uri); f.append('userName',KGB.user); f.append('password',KGB.password);
+  f.append('database',KGB.database); f.append('email',KGB.email);
+  if(extra) for(const k in extra) f.append(k, extra[k]); return f; }
+async function kgbPost(path, extra){
+  const res=await fetch(KGB.base.replace(/\/+$/,'')+path, {method:'POST', body:kgbForm(extra)});
+  if(!res.ok) throw new Error('HTTP '+res.status+' from '+path);
+  return res.json();
+}
+function kgbRead(){ KGB.base=gv('k_base'); KGB.uri=gv('k_uri'); KGB.database=gv('k_db');
+  KGB.user=gv('k_user'); KGB.password=gv('k_pass'); KGB.mode=gv('k_mode'); KGB.model=gv('k_model'); }
+
+window.kgbConnect=async function(){
+  kgbRead();
+  kgbStatus(`Connecting… <code>POST ${KGB.base}/schema</code>`);
+  try{
+    const s=await kgbPost('/schema',{});
+    const d=s.data||s; const labels=d.labels||d.nodeLabels||[];
+    KGB.connected=true; setSrcChip(true);
+    kgbStatus(`Connected ✓ ${Array.isArray(labels)?labels.length+' node labels':'schema loaded'}. Loading graph…`, true);
+    try{ await window.kgbLoadGraph();
+      kgbStatus('Connected ✓ — graph loaded from Neo4j. Ask a question to query it via GraphRAG.', true);
+    }catch(e){ kgbStatus(`Connected ✓, but <code>/graph_query</code> returned nothing (${e.message}). Chat is still available.`, true); }
+    setTimeout(window.kgbClose, 1000);
+  }catch(e){
+    KGB.connected=false; setSrcChip(false);
+    kgbStatus(`Couldn’t reach the backend: ${e.message}.<br>Check the backend is running and reachable from this page (CORS; and http/https mixed-content — open this file locally to hit <code>http://localhost</code>). Staying on the offline demo.`, false);
+  }
+};
+window.kgbUseDemo=function(){ KGB.connected=false; setSrcChip(false);
+  setGraph(DEMO_NODES.map(n=>({...n})), DEMO_EDGES.map(e=>[...e]));
+  kgbStatus('Using the offline demo knowledge base.'); setTimeout(window.kgbClose, 500); };
+
+/* map a /graph_query response into our {nodes, edges} (defensive about field names) */
+function mapKgbGraph(j){
+  const d=j.data||j;
+  const rawN=d.nodes||[], rawR=d.relationships||d.relations||d.rels||d.edges||[];
+  const nodes=rawN.map(n=>{ const p=n.properties||n.props||{}; const lbl=(n.labels&&n.labels[0])||n.label||'Node';
+    const props=Object.keys(p).slice(0,6).map(k=>`${k}: ${p[k]}`).join(', ');
+    return {id:String(n.element_id||n.elementId||n.id), t:String(lbl).toLowerCase(), tlabel:lbl, prov:'neo4j',
+      label:String(p.id||p.name||p.title||lbl), kw:String(p.id||p.name||lbl).toLowerCase(),
+      d:`<b style="color:#8fd0ff">Neo4j node.</b> Label <b>${lbl}</b>.${props?' '+props:''}`}; });
+  const ids=new Set(nodes.map(n=>n.id));
+  const edges=rawR.map(r=>[String(r.start_node_element_id||r.startNodeElementId||r.start||r.source),
+                           String(r.end_node_element_id||r.endNodeElementId||r.end||r.target),
+                           String(r.type||r.rel||r.label||'REL')])
+                  .filter(e=>ids.has(e[0])&&ids.has(e[1]));
+  return {nodes, edges};
+}
+window.kgbLoadGraph=async function(){
+  const j=await kgbPost('/graph_query',{document_names:JSON.stringify([])});
+  const g=mapKgbGraph(j);
+  if(!g.nodes.length) throw new Error('no nodes');
+  setGraph(g.nodes, g.edges);
+};
+
+/* answer a question via GraphRAG /chat_bot → the same What/Where/When/Why/How card */
+async function kgbAsk(q){
+  const steps=[{n:'1', t:'Route', d:`live data source connected → query Neo4j via <b>llm-graph-builder</b> GraphRAG (mode <b>${KGB.mode}</b>)`, route:'neo4j'}];
+  let j;
+  try{
+    j=await kgbPost('/chat_bot',{model:KGB.model, question:q, document_names:JSON.stringify([]),
+      session_id:KGB.session, mode:KGB.mode, embedding_provider:'openai', embedding_model:'openai'});
+  }catch(e){
+    steps.push({n:'2', t:'Retrieve', d:`backend unreachable (${e.message}) → falling back to the offline demo`, route:'db'});
+    const r=runPipeline(q); r.steps=[...steps, ...r.steps.map(s=>({...s, n:String(+s.n+1)}))]; return r;
+  }
+  const d=j.data||j; const info=d.info||j.info||{};
+  const answer=d.message||d.response||j.message||'(no message field in the /chat_bot response)';
+  let sources=info.sources||info.source||d.sources||[];
+  if(!Array.isArray(sources)) sources=[sources];
+  const srcList=sources.map(s=>typeof s==='string'?s:(s.fileName||s.fileSource||s.name||s.source||JSON.stringify(s))).filter(Boolean);
+  const rt=info.response_time!=null?`${info.response_time}s`:'n/a';
+  steps.push({n:'2', t:'Retrieve', d:`GraphRAG <b>${KGB.mode}</b> retrieval over Neo4j`, route:'neo4j'});
+  steps.push({n:'3', t:'Synthesize', d:'LLM composed an answer with source attribution ↓', route:'neo4j'});
+  const facets={
+    what:`GraphRAG answer via <b>llm-graph-builder</b> <span class="m">(mode ${KGB.mode})</span>`,
+    where:`Neo4j <span class="m">— ${KGB.uri||'connected instance'} · ${KGB.base}</span>`+
+          (srcList.length?`<br>Cited: ${srcList.map(s=>`<span class="prov-tag" style="color:#8fd0ff;border-color:#60a5fa55">${escapeHtml(String(s))}</span>`).join(' ')}`:''),
+    when:`Retrieved this session <span class="m">· response time ${rt}</span>`,
+    why:`A live data source is connected, so the router answered from <b>Neo4j</b> via llm-graph-builder’s GraphRAG (<i>${KGB.mode}</i>) rather than the offline demo.`,
+    how:`<span class="path">question → <b>${KGB.mode}</b> retrieval over Neo4j (vector + graph + full-text, as configured) → LLM synthesis with source attribution.</span>`
+  };
+  const src=srcList.length?srcList.join('; '):('Neo4j · '+(KGB.uri||'llm-graph-builder'));
+  return {steps, route:'neo4j', facets, final:escapeHtml(answer).replace(/\n/g,'<br>'), src};
+}
+
+/* suggested questions (first three → DB, last three → web; ignored labels-wise in live mode) */
 const SUGG=['Who works on Project Atlas?','What does Beacon depend on?','Who knows Python?','Latest Python release?','GraphQL latest spec?','Graph database options?'];
 const suggEl=document.getElementById('sugg');
 SUGG.forEach(s=>{ const c=document.createElement('div'); c.className='chip'; c.textContent=s;
   c.onclick=()=>{ document.getElementById('q').value=s; window.ask(); }; suggEl.append(c); });
 
 /* ---- boot ---- */
-build(); loop(); selectNode('pr_atlas');
+const DEMO_NODES=NODES.map(n=>({...n})), DEMO_EDGES=EDGES.map(e=>[...e]);
+initGroups(); buildEls(); loop(); selectNode('pr_atlas');
 setTimeout(()=>{
-  answerEl.innerHTML=`<div class="a">Ask a question. I <b>route</b> it: covered by the graph → <span class="route db">DATABASE</span>; asks for a live value → <span class="route web">WEB SEARCH</span> (I extract the fact and graft it in as a provisional node). Try <b class="link" onclick="document.getElementById('q').value='Latest Python release?';window.ask();">“latest Python release?”</b></div>`;
+  answerEl.innerHTML=`<div class="a">Ask a question. I <b>route</b> it: covered by the graph → <span class="route db">DATABASE</span>; a live value → <span class="route web">WEB SEARCH</span> (extracted &amp; grafted in). Connect a real <b class="link" onclick="window.kgbOpen()">Neo4j / llm-graph-builder</b> backend to answer from it via <span class="route neo4j">GraphRAG</span> instead. Try <b class="link" onclick="document.getElementById('q').value='Latest Python release?';window.ask();">“latest Python release?”</b></div>`;
 },50);
 </script>
 </body>
