@@ -41,22 +41,22 @@ Query
 The agent shows all six steps live in the answer panel, tagged **DB** or **WEB**, so the routing
 decision is transparent.
 
-### Web-search explainability
+### Explainability — on every answer
 
-Whenever a query takes the **WEB SEARCH** path, the agent presents its reasoning next to the context
-graph — a labelled card that answers five questions:
+**Every** answer — DATABASE and WEB SEARCH alike — presents its reasoning next to the context graph as
+the same labelled card, answering five questions:
 
-| Facet | Answers |
-|---|---|
-| **What** | the extracted fact (subject + value) and its confidence |
-| **Where** | the source — title, publisher, and URL it was retrieved from |
-| **When** | the **publish date** of the knowledge article (plus that it was retrieved this session) |
-| **Why** | the routing rationale — why web instead of the graph, and why the fact was grafted onto *this* node (entity resolution) |
-| **How** | the derivation path: `web result → extract triple → merge as provisional node → answer reads the enriched subgraph` |
+| Facet | DATABASE answer | WEB SEARCH answer |
+|---|---|---|
+| **What** | the matched entity + summary | the extracted fact (subject + value) + confidence |
+| **Where** | internal knowledge base — the node + how many linked facts | the source — title, publisher, URL |
+| **When** | knowledge base *as-of* date (curated, not live) | the **publish date** of the article (+ retrieved this session) |
+| **Why** | why it answered from the graph (coverage ≥ θ, no live-value ask) | why it went to the web, and why the fact grafted onto *this* node (entity resolution) |
+| **How** | `matched node → traversed its relations → composed the answer` | `web result → extract triple → merge provisional node → answer reads the enriched subgraph` |
 
 Every node name in the card is clickable and highlights the corresponding node in the graph, so the
-reasoning and the context graph stay in sync. The same provenance (source, publisher, publish date,
-confidence) is also shown in the inspector when you click a web-sourced node.
+reasoning and the context graph stay in sync. For web-sourced nodes, the same provenance (source,
+publisher, publish date, confidence) also appears in the inspector when you click the node.
 
 ## The knowledge base (demo data)
 

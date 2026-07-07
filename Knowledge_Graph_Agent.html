@@ -476,7 +476,36 @@ window.clearProvisional=function(){
 /* ============================================================
    The pipeline: Route → Retrieve → (Search → Extract → Merge) → Synthesize
    ============================================================ */
+const THETA=2;                 // graph-coverage threshold for the DB path
+const KB_UPDATED='2026-05-01';  // when the curated knowledge base was last updated
 function tokenize(q){ return q.toLowerCase().replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(w=>w&&!STOP.has(w)); }
+
+/* render the shared explainability card: what / where / when / why / how + final */
+function cardHtml(f, final){
+  return `<dl class="qa">`+
+    `<dt>What</dt><dd>${f.what}</dd>`+
+    `<dt>Where</dt><dd>${f.where}</dd>`+
+    `<dt>When</dt><dd>${f.when}</dd>`+
+    `<dt>Why</dt><dd>${f.why}</dd>`+
+    `<dt>How</dt><dd>${f.how}</dd>`+
+    `</dl><div class="out"><div class="lab">Final output</div>${final}</div>`;
+}
+
+/* DATABASE-path facets (mirrors the web card, sourced from the knowledge base) */
+function dbFacets(dbRes, dbSc, strong){
+  const F=byId[dbRes.focus], rels=adj[dbRes.focus]||[];
+  const relTypes=[...new Set(rels.map(x=>x.r))];
+  const short=(F.d||'').replace(/<[^>]+>/g,'').split(/\.\s/)[0];
+  return {
+    what:`<b class="link" onclick="window.select('${F.id}')">${F.label}</b> <span class="m">(${TYPES[F.t].label})</span> — ${short}.`,
+    where:`Internal knowledge base <span class="m">— curated · node <code>${F.id}</code> + ${rels.length} linked fact${rels.length!==1?'s':''}</span>`,
+    when:`Knowledge base as of <b>${fmtDate(KB_UPDATED)}</b> <span class="m">· curated, not a live lookup</span>`,
+    why: strong
+      ? `The router answered from the <b>knowledge base</b> because graph coverage was <b>${dbSc>=3?'high':'sufficient'}</b> (score ${dbSc}) ≥ θ=${THETA} and the query didn’t ask for a live value — so no web search was needed.`
+      : `No web source matched and graph coverage was <b>weak</b> (score ${dbSc}); answering with the closest match from the knowledge base — treat as low confidence.`,
+    how:`<span class="path">matched <b class="link" onclick="window.select('${F.id}')">${F.label}</b> → traversed ${rels.length} relation${rels.length!==1?'s':''}${relTypes.length?` (${relTypes.slice(0,4).join(', ')})`:''} → composed the answer from the connected nodes.</span>`
+  };
+}
 
 function runPipeline(query){
   const ql=query.toLowerCase();
@@ -489,7 +518,6 @@ function runPipeline(query){
   const webSc=hits.length?3:0;
   const forceWeb=/\b(search|look ?up|lookup|web|google|find out|online)\b/.test(ql);
   const dataIntent=/\b(latest|current|version|release|newest|2026|news|market|update|price|trend|options?|vendors?)\b/.test(ql);
-  const THETA=2;
   const preferWeb = webSc>0 && (forceWeb || dataIntent || dbSc<THETA);
 
   if(!preferWeb && dbSc>=THETA){
@@ -498,7 +526,7 @@ function runPipeline(query){
     const links=adj[dbRes.focus]?adj[dbRes.focus].length:0;
     steps.push({n:'3', t:'Traverse', d:`walked subgraph around <b>${byId[dbRes.focus].label}</b> (${links} links)`});
     steps.push({n:'4', t:'Synthesize', d:'composed answer from the graph ↓'});
-    return {steps, route:'db', out:dbRes.a, src:dbRes.src};
+    return {steps, route:'db', facets:dbFacets(dbRes, dbSc, true), final:dbRes.a, src:dbRes.src};
   }
   if(webSc>0){
     steps.push({n:'2', t:'Retrieve', d:`graph coverage <b>low</b> (score ${dbSc}) — ${dataIntent?'query asks for a live value':'below θ='+THETA} → escalate`, route:'web'});
@@ -511,14 +539,15 @@ function runPipeline(query){
     steps.push({n:'6', t:'Synthesize', d:'composed answer from the enriched graph ↓'});
     if(byId[triples[0].id]) selectNode(triples[0].id);
     const s=synthWeb(triples, dbRes, {dbSc, dataIntent, forceWeb});
-    return {steps, route:'web', out:s.a, src:s.src};
+    return {steps, route:'web', facets:s.facets, final:s.final, src:s.src};
   }
   if(dbRes){ selectNode(dbRes.focus);
-    steps.push({n:'2', t:'Retrieve', d:`weak graph match (score ${dbSc})`, route:'db'});
-    return {steps, route:'db', out:dbRes.a, src:dbRes.src};
+    steps.push({n:'2', t:'Retrieve', d:`weak graph match (score ${dbSc}) — no web source available`, route:'db'});
+    steps.push({n:'3', t:'Synthesize', d:'composed closest answer from the knowledge base ↓'});
+    return {steps, route:'db', facets:dbFacets(dbRes, dbSc, false), final:dbRes.a, src:dbRes.src};
   }
   steps.push({n:'2', t:'Retrieve', d:'no graph match and no web result'});
-  return {steps, route:null, out:null};
+  return {steps, route:null, facets:null};
 }
 
 function synthWeb(triples, dbRes, ctx){
@@ -539,16 +568,8 @@ function synthWeb(triples, dbRes, ctx){
   // FINAL
   const final=`Grafted onto <b class="link" onclick="window.select('${anchor.id}')">${anchor.label}</b>: ${triples.map(t=>`<b class="link" onclick="window.select('${t.id}')">${t.label}</b> (“${t.value}”)`).join(', ')}. Flagged <b style="color:#f5c477">provisional</b> — validate before it’s trusted.`;
 
-  const a=`<dl class="qa">`+
-    `<dt>What</dt><dd>${what}</dd>`+
-    `<dt>Where</dt><dd>${where}</dd>`+
-    `<dt>When</dt><dd>${when}</dd>`+
-    `<dt>Why</dt><dd>${why}</dd>`+
-    `<dt>How</dt><dd>${how}</dd>`+
-    `</dl>`+
-    `<div class="out"><div class="lab">Final output</div>${final}</div>`;
   const src=triples.map(t=>`${t.source.title} (${t.source.publisher}, published ${fmtDate(t.source.published)})`).join('; ');
-  return {a,src};
+  return {facets:{what,where,when,why,how}, final, src};
 }
 
 const answerEl=document.getElementById('answer');
@@ -560,10 +581,8 @@ window.ask=function(ev){
   const stepsHtml=`<div class="steps">${r.steps.map(s=>
     `<div class="step ${s.route==='web'?'web':''}"><span class="n">${s.n}</span><span><b>${s.t}.</b> ${s.d}${s.route?`<span class="route ${s.route}">${s.route==='web'?'WEB':'DB'}</span>`:''}</span></div>`).join('')}</div>`;
   let outHtml;
-  if(r.out){ const badge=`<span class="route ${r.route}">${r.route==='web'?'WEB SEARCH':'DATABASE'}</span>`;
-    const body = r.route==='web' ? r.out /* already structured: what/where/when/why/how + final */
-      : `<div class="out"><div class="lab">Final output</div>${r.out}</div>`;
-    outHtml=`<div class="a">${badge}${body}<span class="src">Source${r.route==='web'?'s':''}: ${r.src}</span></div>`;
+  if(r.facets){ const badge=`<span class="route ${r.route}">${r.route==='web'?'WEB SEARCH':'DATABASE'}</span>`;
+    outHtml=`<div class="a">${badge}${cardHtml(r.facets, r.final)}<span class="src">Source${r.route==='web'?'s':''}: ${r.src}</span></div>`;
   } else { outHtml=`<div class="a">No route found — the graph has no match and the web search returned nothing. Try different phrasing or a suggested question.</div>`; }
   answerEl.innerHTML=`<div class="q">${escapeHtml(q)}</div>${stepsHtml}${outHtml}`+answerEl.innerHTML;
   answerEl.scrollTop=0; inp.value=''; return false;
