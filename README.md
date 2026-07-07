@@ -1,48 +1,88 @@
-# Knowledge-Graph
+# Knowledge Graph Agent
 
-An interactive **knowledge graph agent** for the Kore.ai / ABL contact-center value model.
-
-It maps the whole value thesis as a graph — the moat arguments, the complexity tiers, the
-cost/value formulas, the deal inputs, and the Gartner / McKinsey / Forrester benchmarks that
-back every number — and puts an **agent** in front of it that answers questions by tracing the
-graph.
+A self-contained **knowledge graph agent**. Ask a question in plain language; the agent decides
+where the facts come from — the internal knowledge base or a live web search — feeds them through a
+knowledge graph, and answers from it. Every routing decision is shown, step by step.
 
 ## File
 
 | File | Purpose |
 |---|---|
-| `ABL_Knowledge_Graph_Agent.html` | **The agent.** A single self-contained HTML file — force-directed knowledge graph + a retrieval agent, all inlined. No build step, no CDN, no dependencies, fully offline. |
-| `index.html` | Redirect so GitHub Pages serves the graph at the site root. |
+| `Knowledge_Graph_Agent.html` | **The agent.** A single self-contained HTML file — a force-directed knowledge graph plus the full pipeline, all inlined. No build step, no CDN, no dependencies, fully offline. |
+| `index.html` | Redirect so GitHub Pages serves the agent at the site root. |
 
-## What's in the graph
+## The pipeline logic
 
-Five node types, colour-coded (dark instrument-panel aesthetic, matching the ABL dashboard lineage):
+Every question runs through one pipeline. The graph decides *where its facts come from*, then
+answers from the graph:
 
-- **Thesis / moat** (teal) — deterministic workflows, cost-per-resolution moat, seat-decay contradiction, value concentrated in the low tier.
-- **Complexity tier** (violet) — Low (0 LLM calls, 90% auto), Medium (1 call, 60%), High (4 calls, 25%).
-- **Formula / metric** (blue) — effective deflection, ABL cost/resolution, LLM token cost, tier value, seats released, 3-yr NPV & payback.
-- **Deal input** (grey) — 100M volume, 20k agents, $45k/agent, $0.20 platform floor, token prices, $7.16 human cost.
-- **Analyst source** (amber) — the Gartner / McKinsey / Forrester findings that ground each claim.
+```
+Query
+  │
+  ▼
+① ROUTE      parse query → key terms; score how well the graph already covers it
+  │
+  ▼
+② RETRIEVE   • coverage ≥ θ and not a "live value" ask → DATABASE path (the graph itself)
+  │          • coverage < θ, or the query asks for a fresh value → WEB SEARCH path
+  ▼
+③ SEARCH     (web path) run the search adapter → raw results
+  │
+  ▼
+④ EXTRACT    turn results into triples: (subject, relation, object) + value + source + confidence
+  │
+  ▼
+⑤ MERGE      insert triples as PROVISIONAL nodes/edges — entity-resolved, provenance attached,
+  │          rendered amber/dashed, never overwriting the trusted core
+  ▼
+⑥ SYNTHESIZE walk the (now enriched) subgraph → FINAL OUTPUT: answer + reasoning path + sources
+```
 
-Edges are typed relationships (`grounds`, `feeds`, `drives`, `sizes`, …) so you can trace, for any
-number, exactly which formula produces it and which benchmark backs it.
+The agent shows all six steps live in the answer panel, tagged **DB** or **WEB**, so the routing
+decision is transparent.
 
-## The agent
+## The knowledge base (demo data)
 
-Ask a question in plain language — *"why is ABL's cost flat?"*, *"what backs the 80% claim?"*,
-*"how are seats freed?"* — and the agent:
+A neutral, fictional example graph — the canonical shape for a knowledge graph agent — with five node
+types, colour-coded:
 
-1. Matches intent (rules first, then keyword retrieval across every node), and
-2. Answers with the relevant formula/benchmark, **focuses the matching node in the graph**, and
-   cites the source. Node names in the answer are clickable and jump you around the graph.
+- **Person** (teal) — Ada Lovelace, Grace Hopper, Alan Turing, Katherine Johnson
+- **Team** (violet) — Platform, Data, Design
+- **Project** (blue) — Atlas, Beacon, Comet
+- **Technology** (grey) — Python, GraphQL, graph database, design system
+- **Document** (green) — the Atlas and Beacon specs
 
-Runs entirely offline — no API required. The retrieval is deterministic and self-contained.
+Edges are typed relationships (`leads`, `member of`, `owns`, `depends on`, `has skill`, `authored`,
+`describes`), so you can trace who works on what, what a project depends on, or who knows a technology.
+
+Web-sourced facts arrive as a sixth type, **Web-sourced** (amber, dashed).
+
+## Routing rule
+
+- A question already in the graph — *"who works on Project Atlas?"*, *"what does Beacon depend on?"*,
+  *"who knows Python?"* → **DATABASE** path (answered from the graph).
+- A question asking for a live value — *"latest Python release?"*, *"GraphQL latest spec?"*,
+  *"graph database options?"* → **WEB SEARCH** path: the agent searches, extracts the fact, grafts it
+  onto the right node as a **provisional** node, then answers from the enriched graph.
+
+## Trust tiers
+
+Curated nodes come from the internal knowledge base and are trusted. Web-sourced nodes are
+**provisional** — amber/dashed, with provenance (source, date) and a confidence flag, and an explicit
+*"validate before relying on it."* Web facts never overwrite the curated core. A **✕ clear web-added
+nodes** control removes them.
+
+## Source adapter
+
+`webSearch()` is an adapter over a bundled snapshot so the whole flow runs offline. Swap its one-line
+body for a real search API (Brave / Serper / Bing) in a hosted build; the `extract` step is where an
+NER / LLM extractor plugs in to produce the triples.
 
 ## Use it
 
-- **Open / share:** download `ABL_Knowledge_Graph_Agent.html` and open in any browser, or host via GitHub Pages.
+- **Open / share:** download `Knowledge_Graph_Agent.html` and open in any browser, or host via GitHub Pages.
 - **Explore:** drag nodes, click to inspect, scroll / pinch to zoom, toggle node types with the legend chips.
+- **Ask:** type a question, or tap a suggested one. Runs entirely offline — no API required.
 - Mobile-responsive (graph on top, inspector + agent below).
 
-> The value model here mirrors the shared math documented in `CLAUDE.md` of the value-modeling
-> system. Benchmarks are external analyst projections; realized value depends on execution.
+> Demo data is fictional and for illustration; web-snapshot results are illustrative and flagged provisional.
